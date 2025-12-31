@@ -7,7 +7,7 @@ import { games } from "@/app/games/games.config";
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [dailyMode, setDailyMode] = useState(false);
+  const [dailyMode, setDailyMode] = useState(true); // Default to true
   const [isOpen, setIsOpen] = useState(false);
 
   // Load daily mode preference from localStorage
@@ -15,6 +15,10 @@ export default function Sidebar() {
     const saved = localStorage.getItem("dailyPuzzleMode");
     if (saved !== null) {
       setDailyMode(saved === "true");
+    } else {
+      // If no saved preference, default to true and save it
+      setDailyMode(true);
+      localStorage.setItem("dailyPuzzleMode", "true");
     }
   }, []);
 

@@ -14,6 +14,17 @@ interface GameState {
   distanceEmojis: string[];
 }
 
+interface SavedGameState {
+  numbers: NumberWithState[];
+  history: string[];
+  distanceEmojis: string[];
+  elapsedTime: number;
+  gameEnded: boolean;
+  target: number;
+  puzzleDate: string; // For daily mode - to check if it's a new day
+  dailyMode: boolean;
+}
+
 interface SolutionStep {
   a: number;
   b: number;
@@ -169,20 +180,80 @@ export function NumberPuzzle() {
 
   const [dailyMode, setDailyMode] = useState(false);
 
+  // Load game state from localStorage
+  const loadGameState = (): SavedGameState | null => {
+    try {
+      const saved = localStorage.getItem("numberPuzzleState");
+      if (!saved) return null;
+      
+      const state: SavedGameState = JSON.parse(saved);
+      
+      // Check if it's a new day (for daily mode)
+      if (state.dailyMode) {
+        const currentDate = getDailyPuzzleDate();
+        if (state.puzzleDate !== currentDate) {
+          // New day - clear saved state
+          localStorage.removeItem("numberPuzzleState");
+          return null;
+        }
+      }
+      
+      return state;
+    } catch (e) {
+      return null;
+    }
+  };
+
   // Initialize puzzle only on client side to avoid hydration mismatch
   useEffect(() => {
     if (!puzzleData) {
       // Check if daily puzzle mode is enabled
       const isDailyMode = localStorage.getItem("dailyPuzzleMode") === "true";
       setDailyMode(isDailyMode);
-      const seed = isDailyMode ? getDailyPuzzleDate() : undefined;
-      const generated = generateSolvablePuzzle(seed);
-      setPuzzleData(generated);
-      setTarget(generated.target);
-      setSolution(generated.solution);
-      setNumbers(generated.numbers.map((value) => ({ value, used: false })));
+      
+      // Try to load saved state
+      const savedState = loadGameState();
+      
+      if (savedState && savedState.dailyMode === isDailyMode) {
+        // Restore saved state
+        const seed = isDailyMode ? getDailyPuzzleDate() : undefined;
+        const generated = generateSolvablePuzzle(seed);
+        setPuzzleData(generated);
+        setTarget(savedState.target);
+        setSolution(generated.solution); // Keep solution from generation
+        setNumbers(savedState.numbers);
+        setHistory(savedState.history);
+        setDistanceEmojis(savedState.distanceEmojis);
+        setElapsedTime(savedState.elapsedTime);
+        setGameEnded(savedState.gameEnded);
+      } else {
+        // Generate new puzzle
+        const seed = isDailyMode ? getDailyPuzzleDate() : undefined;
+        const generated = generateSolvablePuzzle(seed);
+        setPuzzleData(generated);
+        setTarget(generated.target);
+        setSolution(generated.solution);
+        setNumbers(generated.numbers.map((value) => ({ value, used: false })));
+      }
     }
   }, [puzzleData]);
+
+  // Save state whenever it changes
+  useEffect(() => {
+    if (puzzleData && numbers.length > 0) {
+      const savedState: SavedGameState = {
+        numbers,
+        history,
+        distanceEmojis,
+        elapsedTime,
+        gameEnded,
+        target,
+        puzzleDate: dailyMode ? getDailyPuzzleDate() : "random",
+        dailyMode,
+      };
+      localStorage.setItem("numberPuzzleState", JSON.stringify(savedState));
+    }
+  }, [numbers, history, distanceEmojis, elapsedTime, gameEnded, target, dailyMode, puzzleData]);
 
   // Timer effect
   useEffect(() => {
@@ -334,10 +405,15 @@ export function NumberPuzzle() {
   };
 
   const reset = () => {
+    // Clear saved state when resetting (only for non-daily mode, daily mode clears on new day)
+    const isDailyMode = localStorage.getItem("dailyPuzzleMode") === "true";
+    if (!isDailyMode) {
+      localStorage.removeItem("numberPuzzleState");
+    }
+    
     setElapsedTime(0);
     setGameEnded(false);
     // Regenerate puzzle with same seed if daily mode
-    const isDailyMode = localStorage.getItem("dailyPuzzleMode") === "true";
     const seed = isDailyMode ? getDailyPuzzleDate() : undefined;
     const generated = generateSolvablePuzzle(seed);
     setPuzzleData(generated);
@@ -617,34 +693,27 @@ export function NumberPuzzle() {
             {hasLost && <span>❌</span>}
           </div>
           <p className="text-base sm:text-lg text-purple-700 mb-4">Time: {formatTime(elapsedTime)}</p>
-          <button
-            onClick={shareResult}
-            className="px-6 sm:px-6 py-4 sm:py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold text-base sm:text-base"
-          >
-            📋 Share Result
-          </button>
+          {dailyMode && (
+            <button
+              onClick={shareResult}
+              className="px-6 sm:px-6 py-4 sm:py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold text-base sm:text-base"
+            >
+              📋 Share Result
+            </button>
+          )}
         </div>
       )}
 
-      <div className="text-center">
-        <button
-          onClick={reset}
-          disabled={dailyMode}
-          className={`px-6 sm:px-6 py-4 sm:py-3 rounded-lg font-semibold text-base sm:text-base ${
-            dailyMode
-              ? "bg-gray-400 text-gray-600 cursor-not-allowed"
-              : "bg-gray-900 text-white hover:bg-gray-800"
-          }`}
-          title={dailyMode ? "New Game is disabled in Daily Puzzle mode" : ""}
-        >
-          New Game
-        </button>
-        {dailyMode && (
-          <p className="text-xs sm:text-sm text-gray-500 mt-2">
-            New Game is disabled in Daily Puzzle mode
-          </p>
-        )}
-      </div>
+      {!dailyMode && (
+        <div className="text-center">
+          <button
+            onClick={reset}
+            className="px-6 sm:px-6 py-4 sm:py-3 rounded-lg font-semibold text-base sm:text-base bg-gray-900 text-white hover:bg-gray-800"
+          >
+            New Game
+          </button>
+        </div>
+      )}
 
       {/* Instructions Popover */}
       {showInstructions && (
