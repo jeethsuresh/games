@@ -4,13 +4,43 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { games } from "@/app/games/games.config";
+import { getDailyPuzzleDate } from "@/utils/dailyPuzzle";
+
+function formatDateForDisplay(dateString: string): string {
+  const date = new Date(dateString + "T00:00:00");
+  return date.toLocaleDateString("en-US", { 
+    weekday: "short", 
+    year: "numeric", 
+    month: "short", 
+    day: "numeric" 
+  });
+}
+
+function getPreviousDate(dateString: string): string {
+  const date = new Date(dateString + "T00:00:00");
+  date.setDate(date.getDate() - 1);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getNextDate(dateString: string): string {
+  const date = new Date(dateString + "T00:00:00");
+  date.setDate(date.getDate() + 1);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [dailyMode, setDailyMode] = useState(true); // Default to true
+  const [selectedDate, setSelectedDate] = useState<string>(getDailyPuzzleDate());
   const [isOpen, setIsOpen] = useState(false);
 
-  // Load daily mode preference from localStorage
+  // Load daily mode preference and selected date from localStorage
   useEffect(() => {
     const saved = localStorage.getItem("dailyPuzzleMode");
     if (saved !== null) {
@@ -19,6 +49,16 @@ export default function Sidebar() {
       // If no saved preference, default to true and save it
       setDailyMode(true);
       localStorage.setItem("dailyPuzzleMode", "true");
+    }
+
+    // Load selected date
+    const savedDate = localStorage.getItem("selectedPuzzleDate");
+    if (savedDate) {
+      setSelectedDate(savedDate);
+    } else {
+      const today = getDailyPuzzleDate();
+      setSelectedDate(today);
+      localStorage.setItem("selectedPuzzleDate", today);
     }
   }, []);
 
@@ -29,6 +69,29 @@ export default function Sidebar() {
     localStorage.setItem("dailyPuzzleMode", String(newValue));
     // Reload the page to regenerate puzzle with new mode
     window.location.reload();
+  };
+
+  const changeDate = (newDate: string) => {
+    setSelectedDate(newDate);
+    localStorage.setItem("selectedPuzzleDate", newDate);
+    // Dispatch custom event for same-window listeners
+    window.dispatchEvent(new Event("puzzleDateChanged"));
+    // Reload the page to regenerate puzzle with new date
+    window.location.reload();
+  };
+
+  const goToPreviousDate = () => {
+    const prevDate = getPreviousDate(selectedDate);
+    changeDate(prevDate);
+  };
+
+  const goToNextDate = () => {
+    const nextDate = getNextDate(selectedDate);
+    const today = getDailyPuzzleDate();
+    // Don't allow going to future dates beyond today
+    if (nextDate <= today) {
+      changeDate(nextDate);
+    }
   };
 
   return (
@@ -64,7 +127,7 @@ export default function Sidebar() {
         
           {/* Daily Puzzle Toggle */}
           <div className="mb-4 lg:mb-6 p-3 lg:p-4 bg-gray-800 rounded-lg">
-            <label className="flex items-center justify-between cursor-pointer">
+            <label className="flex items-center justify-between cursor-pointer mb-3">
               <div>
                 <div className="font-semibold text-xs lg:text-sm">Daily Puzzle</div>
                 <div className="text-xs text-gray-400 mt-1">
@@ -91,6 +154,43 @@ export default function Sidebar() {
                 </div>
               </div>
             </label>
+            
+            {/* Date Selection Controls - only show when daily mode is enabled */}
+            {dailyMode && (
+              <div className="mt-3 pt-3 border-t border-gray-700">
+                <div className="text-xs text-gray-400 mb-2">Select Puzzle Date</div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={goToPreviousDate}
+                    className="px-2 py-1.5 bg-gray-700 hover:bg-gray-600 rounded transition-colors text-white"
+                    aria-label="Previous day"
+                    title="Previous day"
+                  >
+                    ←
+                  </button>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => changeDate(e.target.value)}
+                    max={getDailyPuzzleDate()}
+                    className="flex-1 px-2 py-1.5 bg-gray-700 text-white rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    title="Select date"
+                  />
+                  <button
+                    onClick={goToNextDate}
+                    disabled={selectedDate >= getDailyPuzzleDate()}
+                    className="px-2 py-1.5 bg-gray-700 hover:bg-gray-600 rounded transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Next day"
+                    title="Next day"
+                  >
+                    →
+                  </button>
+                </div>
+                <div className="text-xs text-gray-400 mt-2">
+                  {formatDateForDisplay(selectedDate)}
+                </div>
+              </div>
+            )}
           </div>
 
           <nav className="space-y-2">
