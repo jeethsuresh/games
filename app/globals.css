@@ -2,3 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Mobile Safari bottom padding to prevent content from being hidden by browser chrome */
+.pb-safe {
+  /* Add extra padding for Safari's bottom tab bar (safe area inset + additional padding) */
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 2rem);
+}
+
