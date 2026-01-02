@@ -65,3 +65,16 @@ export class SeededRandom {
   }
 }
 
+/**
+ * Deterministic Fisher-Yates shuffle using seeded random generator
+ * This ensures 100% deterministic shuffling without relying on array.sort()
+ */
+export function deterministicShuffle<T>(array: T[], rng: SeededRandom): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = rng.nextInt(0, i + 1);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+

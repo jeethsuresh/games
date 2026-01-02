@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { getDailyPuzzleDate, SeededRandom } from "@/utils/dailyPuzzle";
+import { getDailyPuzzleDate, SeededRandom, deterministicShuffle } from "@/utils/dailyPuzzle";
+import { usePuzzleStore } from "@/store/puzzleStore";
 
 interface NumberWithState {
   value: number;
@@ -111,23 +112,22 @@ function solvePuzzle(numbers: number[], target: number): SolutionStep[] | null {
   return solveRecursive(numbers);
 }
 
-function generateSolvablePuzzle(seed?: string): { numbers: number[]; target: number; solution: SolutionStep[] } {
+function generateSolvablePuzzle(seed: string): { numbers: number[]; target: number; solution: SolutionStep[] } {
   const maxAttempts = 100;
-  const rng = seed ? new SeededRandom(seed) : null;
+  const rng = new SeededRandom(seed);
   
   // Helper function to get random number
-  const random = () => rng ? rng.next() : Math.random();
-  const randomInt = (min: number, max: number) => rng ? rng.nextInt(min, max) : Math.floor(Math.random() * (max - min)) + min;
+  const randomInt = (min: number, max: number) => rng.nextInt(min, max);
   
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const large = [25, 50, 75, 100];
     const small = Array.from({ length: 4 }, () => randomInt(1, 11)); // 1-10 inclusive
-    // Shuffle and select 2 large numbers
-    const shuffledLarge = [...large].sort(() => random() - 0.5);
+    // Deterministically shuffle and select 2 large numbers
+    const shuffledLarge = deterministicShuffle(large, rng);
     const selectedLarge = shuffledLarge.slice(0, 2);
-    const numbers = [...selectedLarge, ...small].sort(() => random() - 0.5);
+    const numbers = deterministicShuffle([...selectedLarge, ...small], rng);
     const target = randomInt(100, 1000); // 100-999 inclusive
-
+    
     const solution = solvePuzzle(numbers, target);
     if (solution !== null) {
       return { numbers, target, solution };
@@ -174,6 +174,7 @@ function formatDateForDisplay(dateString: string): string {
 }
 
 export function NumberPuzzle() {
+  const { dailyMode, selectedDate } = usePuzzleStore();
   const [puzzleData, setPuzzleData] = useState<{ numbers: number[]; target: number; solution: SolutionStep[] } | null>(null);
   const [target, setTarget] = useState(0);
   const [solution, setSolution] = useState<SolutionStep[]>([]);
@@ -188,8 +189,6 @@ export function NumberPuzzle() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [gameEnded, setGameEnded] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  const [dailyMode, setDailyMode] = useState(false);
 
   // Load game state from localStorage for a specific date
   const loadGameState = (date: string | undefined): SavedGameState | null => {
@@ -209,21 +208,16 @@ export function NumberPuzzle() {
   // Initialize puzzle only on client side to avoid hydration mismatch
   useEffect(() => {
     if (!puzzleData) {
-      // Check if daily puzzle mode is enabled
-      const isDailyMode = localStorage.getItem("dailyPuzzleMode") === "true";
-      setDailyMode(isDailyMode);
-      
-      // Get selected date from localStorage (managed by Sidebar)
-      const selectedDate = isDailyMode 
-        ? (localStorage.getItem("selectedPuzzleDate") || getDailyPuzzleDate())
-        : undefined;
+      // Get seed: use selectedDate for daily mode, or generate a timestamp-based seed for random mode
+      const seed = dailyMode 
+        ? selectedDate 
+        : `random_${Date.now()}`;
       
       // Try to load saved state for this specific date
-      const savedState = loadGameState(selectedDate);
+      const savedState = loadGameState(dailyMode ? selectedDate : undefined);
       
-      if (savedState && savedState.dailyMode === isDailyMode) {
+      if (savedState && savedState.dailyMode === dailyMode) {
         // Restore saved state (including solution)
-        const seed = isDailyMode ? savedState.puzzleDate : undefined;
         const generated = generateSolvablePuzzle(seed);
         setPuzzleData(generated);
         setTarget(savedState.target);
@@ -235,7 +229,6 @@ export function NumberPuzzle() {
         setGameEnded(savedState.gameEnded);
       } else {
         // No saved state for this date, generate new puzzle
-        const seed = isDailyMode ? selectedDate : undefined;
         const generated = generateSolvablePuzzle(seed);
         setPuzzleData(generated);
         setTarget(generated.target);
@@ -243,40 +236,45 @@ export function NumberPuzzle() {
         setNumbers(generated.numbers.map((value) => ({ value, used: false })));
       }
     }
-  }, [puzzleData]);
+  }, [puzzleData, dailyMode, selectedDate]);
 
-  // Listen for date changes in localStorage (when Sidebar changes date)
+  // Listen for date/mode changes in Zustand store
   useEffect(() => {
-    if (!dailyMode) return;
-
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "selectedPuzzleDate" && e.newValue) {
-        // Date changed, reload to load the new date's state
-        window.location.reload();
+    // When date or mode changes, reload the puzzle
+    if (puzzleData) {
+      const seed = dailyMode ? selectedDate : `random_${Date.now()}`;
+      const savedState = loadGameState(dailyMode ? selectedDate : undefined);
+      
+      if (savedState && savedState.dailyMode === dailyMode) {
+        // Restore saved state
+        const generated = generateSolvablePuzzle(seed);
+        setPuzzleData(generated);
+        setTarget(savedState.target);
+        setSolution(savedState.solution || generated.solution);
+        setNumbers(savedState.numbers);
+        setHistory(savedState.history);
+        setDistanceEmojis(savedState.distanceEmojis);
+        setElapsedTime(savedState.elapsedTime);
+        setGameEnded(savedState.gameEnded);
+      } else {
+        // Generate new puzzle
+        const generated = generateSolvablePuzzle(seed);
+        setPuzzleData(generated);
+        setTarget(generated.target);
+        setSolution(generated.solution);
+        setNumbers(generated.numbers.map((value) => ({ value, used: false })));
+        setHistory([]);
+        setDistanceEmojis([]);
+        setElapsedTime(0);
+        setGameEnded(false);
       }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    
-    // Also listen for custom event in case date changes in same window
-    const handleDateChange = () => {
-      window.location.reload();
-    };
-    
-    window.addEventListener("puzzleDateChanged", handleDateChange as EventListener);
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("puzzleDateChanged", handleDateChange as EventListener);
-    };
-  }, [dailyMode]);
+    }
+  }, [dailyMode, selectedDate]);
 
   // Save state whenever it changes
   useEffect(() => {
     if (puzzleData && numbers.length > 0) {
-      const selectedDate = dailyMode 
-        ? (localStorage.getItem("selectedPuzzleDate") || getDailyPuzzleDate())
-        : "random";
+      const dateKey = dailyMode ? selectedDate : "random";
       const savedState: SavedGameState = {
         numbers,
         history,
@@ -284,7 +282,7 @@ export function NumberPuzzle() {
         elapsedTime,
         gameEnded,
         target,
-        puzzleDate: dailyMode ? selectedDate : "random",
+        puzzleDate: dateKey,
         dailyMode,
         solution, // Save the solution
       };
@@ -292,7 +290,7 @@ export function NumberPuzzle() {
       const storageKey = dailyMode ? `numberPuzzleState_${selectedDate}` : "numberPuzzleState_random";
       localStorage.setItem(storageKey, JSON.stringify(savedState));
     }
-  }, [numbers, history, distanceEmojis, elapsedTime, gameEnded, target, dailyMode, puzzleData, solution]);
+  }, [numbers, history, distanceEmojis, elapsedTime, gameEnded, target, dailyMode, puzzleData, solution, selectedDate]);
 
   // Timer effect
   useEffect(() => {
@@ -445,12 +443,7 @@ export function NumberPuzzle() {
 
   const reset = () => {
     // Clear saved state when resetting (only for non-daily mode, daily mode keeps state per date)
-    const isDailyMode = localStorage.getItem("dailyPuzzleMode") === "true";
-    const selectedDate = isDailyMode 
-      ? (localStorage.getItem("selectedPuzzleDate") || getDailyPuzzleDate())
-      : "random";
-    
-    if (!isDailyMode) {
+    if (!dailyMode) {
       localStorage.removeItem("numberPuzzleState_random");
     } else {
       // For daily mode, clear the saved state for this specific date
@@ -459,8 +452,8 @@ export function NumberPuzzle() {
     
     setElapsedTime(0);
     setGameEnded(false);
-    // Regenerate puzzle with same seed if daily mode
-    const seed = isDailyMode ? selectedDate : undefined;
+    // Regenerate puzzle with same seed if daily mode, or new timestamp seed for random mode
+    const seed = dailyMode ? selectedDate : `random_${Date.now()}`;
     const generated = generateSolvablePuzzle(seed);
     setPuzzleData(generated);
     setTarget(generated.target);
@@ -503,18 +496,14 @@ export function NumberPuzzle() {
   const ratingEmoji = distance !== null ? getRatingEmoji(distance) : "😬";
   
   // Check if current puzzle is today's puzzle (for sharing)
-  const selectedDate = dailyMode 
-    ? (localStorage.getItem("selectedPuzzleDate") || getDailyPuzzleDate())
-    : null;
   const today = getDailyPuzzleDate();
   const isTodayPuzzle = dailyMode && selectedDate === today;
 
   const shareResult = async () => {
     // Only allow sharing today's puzzle (safety check)
     if (dailyMode) {
-      const currentSelectedDate = localStorage.getItem("selectedPuzzleDate") || getDailyPuzzleDate();
       const todayDate = getDailyPuzzleDate();
-      if (currentSelectedDate !== todayDate) {
+      if (selectedDate !== todayDate) {
         alert("You can only share today's puzzle!");
         return;
       }

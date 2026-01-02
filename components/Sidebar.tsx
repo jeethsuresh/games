@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { games } from "@/app/games/games.config";
 import { getDailyPuzzleDate } from "@/utils/dailyPuzzle";
+import { usePuzzleStore } from "@/store/puzzleStore";
 
 function formatDateForDisplay(dateString: string): string {
   const date = new Date(dateString + "T00:00:00");
@@ -36,46 +37,17 @@ function getNextDate(dateString: string): string {
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [dailyMode, setDailyMode] = useState(true); // Default to true
-  const [selectedDate, setSelectedDate] = useState<string>(getDailyPuzzleDate());
+  const { dailyMode, selectedDate, setDailyMode, setSelectedDate } = usePuzzleStore();
   const [isOpen, setIsOpen] = useState(false);
 
-  // Load daily mode preference and selected date from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem("dailyPuzzleMode");
-    if (saved !== null) {
-      setDailyMode(saved === "true");
-    } else {
-      // If no saved preference, default to true and save it
-      setDailyMode(true);
-      localStorage.setItem("dailyPuzzleMode", "true");
-    }
-
-    // Load selected date
-    const savedDate = localStorage.getItem("selectedPuzzleDate");
-    if (savedDate) {
-      setSelectedDate(savedDate);
-    } else {
-      const today = getDailyPuzzleDate();
-      setSelectedDate(today);
-      localStorage.setItem("selectedPuzzleDate", today);
-    }
-  }, []);
-
-  // Save daily mode preference to localStorage
   const toggleDailyMode = () => {
-    const newValue = !dailyMode;
-    setDailyMode(newValue);
-    localStorage.setItem("dailyPuzzleMode", String(newValue));
+    setDailyMode(!dailyMode);
     // Reload the page to regenerate puzzle with new mode
     window.location.reload();
   };
 
   const changeDate = (newDate: string) => {
     setSelectedDate(newDate);
-    localStorage.setItem("selectedPuzzleDate", newDate);
-    // Dispatch custom event for same-window listeners
-    window.dispatchEvent(new Event("puzzleDateChanged"));
     // Reload the page to regenerate puzzle with new date
     window.location.reload();
   };
