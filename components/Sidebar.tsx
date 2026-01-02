@@ -42,14 +42,10 @@ export default function Sidebar() {
 
   const toggleDailyMode = () => {
     setDailyMode(!dailyMode);
-    // Reload the page to regenerate puzzle with new mode
-    window.location.reload();
   };
 
   const changeDate = (newDate: string) => {
     setSelectedDate(newDate);
-    // Reload the page to regenerate puzzle with new date
-    window.location.reload();
   };
 
   const goToPreviousDate = () => {
