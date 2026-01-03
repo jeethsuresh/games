@@ -572,7 +572,7 @@ export function NumberPuzzle() {
     <div className="max-w-4xl mx-auto px-2 sm:px-4 relative min-h-full">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <h1 className="text-2xl sm:text-3xl font-bold">Number Puzzle</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Number Golf</h1>
           {dailyMode && (
             <span className="px-2 sm:px-3 py-1 bg-yellow-500 text-yellow-900 rounded-full text-xs sm:text-sm font-semibold">
               📅 Daily

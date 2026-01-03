@@ -11,7 +11,7 @@ export interface Game {
 export const games: Game[] = [
   {
     id: "number-puzzle",
-    name: "Number Puzzle",
+    name: "Number Golf",
     description: "Use numbers and operations to reach a target",
     component: NumberPuzzle,
   },
