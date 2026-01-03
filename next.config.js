@@ -42,17 +42,20 @@ const withPWA = require('next-pwa')({
         },
       },
     },
-    // Cache Next.js data routes with NetworkFirst
+    // Cache Next.js data routes with CacheFirst - NO NETWORK REQUESTS
+    // All data should be cached and served from cache immediately
     {
       urlPattern: /^https?:\/\/.*\/_next\/data\/.*/,
-      handler: 'NetworkFirst',
+      handler: 'CacheFirst',
       options: {
         cacheName: 'next-data',
         expiration: {
           maxEntries: 50,
           maxAgeSeconds: 60 * 60 * 24, // 1 day
         },
-        networkTimeoutSeconds: 3,
+        cacheableResponse: {
+          statuses: [0, 200],
+        },
       },
     },
     // Cache root "/" route explicitly - must come before general pages route
