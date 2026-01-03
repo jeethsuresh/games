@@ -1,6 +1,6 @@
-# Puzzle Games
+# Jeeth's Games
 
-A Next.js application hosting a collection of word and number puzzle games, similar to NYT Connections or Countdown.
+A Next.js application hosting a collection of word and number golf games, similar to NYT Connections or Countdown.
 
 ## Features
 
@@ -50,7 +50,7 @@ npm start
 
 ## Games
 
-- **Number Puzzle**: Use numbers and operations to reach a target
+- **Number Golf**: Use numbers and operations to reach a target
 - **Wordle**: Guess the 5-letter word
 
 ## Tech Stack
