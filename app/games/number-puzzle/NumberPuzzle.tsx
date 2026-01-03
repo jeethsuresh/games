@@ -650,7 +650,7 @@ export function NumberPuzzle() {
       </div>
 
       {/* Numbers with preview results - all on one line */}
-      <div className="flex flex-wrap gap-2 sm:gap-4 justify-center mb-6 sm:mb-8 items-end">
+      <div className="flex flex-wrap gap-2 sm:gap-4 justify-center mb-6 sm:mb-8 items-start">
         {numbers.map((num, index) => {
           const isSelected = selectedNumberIndex === index;
           const isUsed = num.used;
@@ -667,7 +667,7 @@ export function NumberPuzzle() {
           const canPerformOperation = previewResult !== null;
 
           return (
-            <div key={index} className="relative flex flex-col items-center">
+            <div key={index} className="relative flex flex-col items-center mb-6 sm:mb-7">
               <button
                 onClick={() => selectNumber(index)}
                 disabled={isUsed || hasWon || hasLost}
@@ -684,7 +684,7 @@ export function NumberPuzzle() {
                 {num.value}
               </button>
               {showPreview && previewResult !== null && (
-                <div className="absolute -bottom-5 sm:-bottom-6 text-xs sm:text-sm font-semibold text-green-600 whitespace-nowrap">
+                <div className="absolute top-full mt-1 sm:mt-1.5 text-xs sm:text-sm font-semibold text-green-600 whitespace-nowrap z-10">
                   = {previewResult}
                 </div>
               )}
