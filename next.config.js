@@ -1,6 +1,6 @@
 const withPWA = require('next-pwa')({
   dest: 'public',
-  register: true,
+  register: false, // Disable automatic registration - we handle it manually for iOS Safari compatibility
   skipWaiting: true,
   // Note: next-pwa disables caching in development mode by default
   // To test offline capabilities, use production mode: npm run build && npm start
