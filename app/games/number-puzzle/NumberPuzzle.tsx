@@ -245,6 +245,9 @@ export function NumberPuzzle() {
       const seed = dailyMode ? selectedDate : `random_${Date.now()}`;
       const savedState = loadGameState(dailyMode ? selectedDate : undefined);
       
+      // Reset solution visibility when puzzle changes
+      setShowSolution(false);
+      
       if (savedState && savedState.dailyMode === dailyMode) {
         // Restore saved state
         const generated = generateSolvablePuzzle(seed);
@@ -550,7 +553,7 @@ export function NumberPuzzle() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-2 sm:px-4">
+    <div className="max-w-4xl mx-auto px-2 sm:px-4 relative min-h-full">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <h1 className="text-2xl sm:text-3xl font-bold">Number Puzzle</h1>
@@ -771,8 +774,11 @@ export function NumberPuzzle() {
 
       {/* Instructions Popover */}
       {showInstructions && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowInstructions(false)}>
-          <div className="bg-white rounded-lg p-4 sm:p-8 max-w-2xl max-h-[90vh] overflow-y-auto w-full" onClick={(e) => e.stopPropagation()}>
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center z-50 p-4" 
+          onClick={() => setShowInstructions(false)}
+        >
+          <div className="bg-white rounded-lg p-4 sm:p-8 max-w-2xl max-h-[90vh] overflow-y-auto w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4 sm:mb-6">
               <h2 className="text-2xl sm:text-3xl font-bold">How to Play</h2>
               <button
