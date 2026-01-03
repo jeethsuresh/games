@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
-    "build": "next build",
+    "build": "next build && node scripts/fix-sw.js",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:offline": "npm run build && npm start"
   },
   "dependencies": {
     "next": "^14.2.5",
