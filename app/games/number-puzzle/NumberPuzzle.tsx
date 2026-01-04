@@ -518,13 +518,12 @@ export function NumberPuzzle() {
   const today = getDailyPuzzleDate();
   const isTodayPuzzle = dailyMode && selectedDate === today;
 
-  const shareResult = async () => {
+  const getShareText = (): string => {
     // Only allow sharing today's puzzle (safety check)
     if (dailyMode) {
       const todayDate = getDailyPuzzleDate();
       if (selectedDate !== todayDate) {
-        alert("You can only share today's puzzle!");
-        return;
+        return "";
       }
     }
 
@@ -536,7 +535,20 @@ export function NumberPuzzle() {
       : "❌";
     const todayDate = getDailyPuzzleDate();
     const dateText = formatDateForDisplay(todayDate);
-    const shareText = `Number golf: ${dateText}\nTime: ${formatTime(elapsedTime)}\n${emojiRow}${finalEmoji}`;
+    return `Number golf: ${dateText}\nTime: ${formatTime(elapsedTime)}\n${emojiRow}${finalEmoji}`;
+  };
+
+  const copyToClipboard = async () => {
+    // Only allow sharing today's puzzle (safety check)
+    if (dailyMode) {
+      const todayDate = getDailyPuzzleDate();
+      if (selectedDate !== todayDate) {
+        alert("You can only share today's puzzle!");
+        return;
+      }
+    }
+
+    const shareText = getShareText();
     
     try {
       await navigator.clipboard.writeText(shareText);
@@ -554,6 +566,37 @@ export function NumberPuzzle() {
         alert("Failed to copy. Here's your result:\n\n" + shareText);
       }
       document.body.removeChild(textArea);
+    }
+  };
+
+  const shareNative = async () => {
+    // Only allow sharing today's puzzle (safety check)
+    if (dailyMode) {
+      const todayDate = getDailyPuzzleDate();
+      if (selectedDate !== todayDate) {
+        alert("You can only share today's puzzle!");
+        return;
+      }
+    }
+
+    const shareText = getShareText();
+
+    // Check if Web Share API is available
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          text: shareText,
+        });
+      } catch (err) {
+        // User cancelled or error occurred
+        if ((err as Error).name !== "AbortError") {
+          // Only show error if it wasn't a user cancellation
+          console.error("Error sharing:", err);
+        }
+      }
+    } else {
+      // Show error message if Web Share API is not available
+      alert("Share sheet unsupported on this browser, sorry!");
     }
   };
 
@@ -767,12 +810,20 @@ export function NumberPuzzle() {
           </div>
           <p className="text-base sm:text-lg text-purple-700 mb-4">Time: {formatTime(elapsedTime)}</p>
           {isTodayPuzzle && (
-            <button
-              onClick={shareResult}
-              className="px-6 sm:px-6 py-4 sm:py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold text-base sm:text-base"
-            >
-              📋 Share Result
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+              <button
+                onClick={shareNative}
+                className="px-6 sm:px-6 py-4 sm:py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold text-base sm:text-base"
+              >
+                📤 Share
+              </button>
+              <button
+                onClick={copyToClipboard}
+                className="px-6 sm:px-6 py-4 sm:py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold text-base sm:text-base"
+              >
+                📋 Copy to Clipboard
+              </button>
+            </div>
           )}
         </div>
       )}
