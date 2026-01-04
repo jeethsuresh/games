@@ -535,8 +535,8 @@ export function NumberPuzzle() {
       ? (lastEmoji === "💯" ? "" : ratingEmoji) 
       : "❌";
     const todayDate = getDailyPuzzleDate();
-    const dateText = dailyMode ? `\nDate: ${formatDateForDisplay(todayDate)}` : "";
-    const shareText = `${emojiRow}${finalEmoji}\n\nTime: ${formatTime(elapsedTime)}${dateText}`;
+    const dateText = formatDateForDisplay(todayDate);
+    const shareText = `Number golf: ${dateText}\nTime: ${formatTime(elapsedTime)}\n${emojiRow}${finalEmoji}`;
     
     try {
       await navigator.clipboard.writeText(shareText);
