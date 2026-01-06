@@ -6,6 +6,7 @@ import { useState } from "react";
 import { games } from "@/app/games/games.config";
 import { getDailyPuzzleDate } from "@/utils/dailyPuzzle";
 import { usePuzzleStore } from "@/store/puzzleStore";
+import { InstallPrompt } from "@/components/InstallPrompt";
 
 function formatDateForDisplay(dateString: string): string {
   const date = new Date(dateString + "T00:00:00");
@@ -90,7 +91,7 @@ export default function Sidebar() {
       <aside className={`fixed lg:static inset-y-0 left-0 z-40 w-64 bg-gray-900 text-white h-screen overflow-y-auto transform transition-transform duration-300 ease-in-out ${
         isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       }`}>
-        <div className="p-4 lg:p-6">
+        <div className="p-4 lg:p-6 flex flex-col h-full">
           <h1 className="text-xl lg:text-2xl font-bold mb-6 lg:mb-8">Games</h1>
         
           {/* Daily Puzzle Toggle */}
@@ -183,6 +184,11 @@ export default function Sidebar() {
               );
             })}
           </nav>
+
+          {/* Install CTA at the bottom */}
+          <div className="mt-auto pt-6">
+            <InstallPrompt />
+          </div>
         </div>
       </aside>
     </>

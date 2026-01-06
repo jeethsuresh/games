@@ -100,47 +100,45 @@ export function InstallPrompt() {
   }
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-80 z-50">
-      <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg p-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-              Install Jeeth's Games
-            </h3>
-            {isIOS ? (
-              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-2">
-                <p>Add this app to your home screen for quick access and offline play!</p>
-                <ol className="list-decimal list-inside space-y-1 ml-2">
-                  <li>Tap the share button <span className="inline-block">📤</span></li>
-                  <li>Select &quot;Add to Home Screen&quot;</li>
-                  <li>Tap &quot;Add&quot;</li>
-                </ol>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Install this app on your device for quick access and offline play!
-              </p>
-            )}
-          </div>
-          <button
-            onClick={handleDismiss}
-            className="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            aria-label="Dismiss"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+    <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-4">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-white mb-1">
+            Install Jeeth's Games
+          </h3>
+          {isIOS ? (
+            <div className="text-sm text-gray-300 space-y-2">
+              <p>Add this app to your home screen for quick access and offline play!</p>
+              <ol className="list-decimal list-inside space-y-1 ml-2">
+                <li>Tap the share button <span className="inline-block">📤</span></li>
+                <li>Select &quot;Add to Home Screen&quot;</li>
+                <li>Tap &quot;Add&quot;</li>
+              </ol>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-300">
+              Install this app on your device for quick access and offline play!
+            </p>
+          )}
         </div>
-        {!isIOS && deferredPrompt && (
-          <button
-            onClick={handleInstallClick}
-            className="mt-4 w-full bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800 transition-colors font-medium"
-          >
-            Install Now
-          </button>
-        )}
+        <button
+          onClick={handleDismiss}
+          className="ml-2 text-gray-400 hover:text-gray-200"
+          aria-label="Dismiss"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
+      {!isIOS && deferredPrompt && (
+        <button
+          onClick={handleInstallClick}
+          className="mt-4 w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors font-medium"
+        >
+          Install Now
+        </button>
+      )}
     </div>
   );
 }

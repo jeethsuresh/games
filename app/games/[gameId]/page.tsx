@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import MobileSafariPadding from "@/components/MobileSafariPadding";
-import { InstallPrompt } from "@/components/InstallPrompt";
 import { games } from "../games.config";
 
 export async function generateStaticParams() {
@@ -33,7 +32,6 @@ export default function GamePage({
           </div>
         </MobileSafariPadding>
       </main>
-      <InstallPrompt />
     </div>
   );
 }
