@@ -58,22 +58,9 @@ const withPWA = require('next-pwa')({
         },
       },
     },
-    // Cache root "/" route explicitly - must come before general pages route
-    // This overrides next-pwa's automatic NetworkFirst route for "/"
-    {
-      urlPattern: /^https?:\/\/[^/]+\/?$/,
-      handler: 'CacheFirst',
-      options: {
-        cacheName: 'pages',
-        expiration: {
-          maxEntries: 100,
-          maxAgeSeconds: 60 * 60 * 24, // 1 day
-        },
-        cacheableResponse: {
-          statuses: [0, 200],
-        },
-      },
-    },
+    // Don't cache root "/" route - it's a redirect and should always fetch fresh
+    // This prevents blank pages when the redirect is cached incorrectly
+    // The root route will use the default NetworkFirst strategy from next-pwa
     // Cache HTML pages - CRITICAL for offline support
     // Use CacheFirst: serves from cache IMMEDIATELY, only fetches if not cached
     // This ensures pages work offline - they must be visited once while online first

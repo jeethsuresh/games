@@ -20,6 +20,7 @@ export function ServiceWorkerRegistration() {
       let retryTimeout: NodeJS.Timeout | null = null;
       let retryCount = 0;
       const maxRetries = 3;
+      const pageLoadTime = Date.now(); // Track when page loaded to prevent immediate reloads
 
       const registerServiceWorker = async () => {
         try {
@@ -110,10 +111,8 @@ export function ServiceWorkerRegistration() {
                     }
                   } else if (newWorker.state === 'activated') {
                     console.log('Service worker activated');
-                    // Force reload on mobile browsers to ensure new service worker takes control
-                    if (navigator.serviceWorker.controller) {
-                      window.location.reload();
-                    }
+                    // Don't force reload here - let the controllerchange event handle it
+                    // This prevents blank screens during initial load
                   }
                 };
                 newWorker.addEventListener('statechange', handleStateChange);
@@ -124,9 +123,24 @@ export function ServiceWorkerRegistration() {
             registration.addEventListener('updatefound', handleUpdateFound);
 
             // Listen for controller change (new service worker took control)
+            // Only reload if this is a new service worker taking control, not the initial activation
             handleControllerChange = () => {
-              console.log('Service worker controller changed, reloading...');
-              window.location.reload();
+              // Check if we already have a controller (meaning a new one just took over)
+              if (navigator.serviceWorker.controller) {
+                // Only reload if we're in production and this isn't the initial load
+                // Skip reload in development to avoid blank screens
+                // Also skip if page just loaded (within 2 seconds) to prevent reload loops
+                const timeSinceLoad = Date.now() - pageLoadTime;
+                if (process.env.NODE_ENV === 'production' && timeSinceLoad > 2000) {
+                  // Use a small delay to ensure the new service worker is ready
+                  setTimeout(() => {
+                    console.log('Service worker controller changed, reloading...');
+                    window.location.reload();
+                  }, 100);
+                } else {
+                  console.log('Service worker controller changed (skipping reload - too soon after page load or dev mode)');
+                }
+              }
             };
             navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
 
@@ -140,12 +154,9 @@ export function ServiceWorkerRegistration() {
               console.log('Service Worker message:', event.data);
             });
 
-            // Check for updates immediately after registration
-            try {
-              await registration.update();
-            } catch (updateError) {
-              console.error('Error updating service worker immediately:', updateError);
-            }
+            // Don't check for updates immediately after registration
+            // This can cause errors when the service worker is in a transitional state
+            // Updates will happen automatically via the periodic check and visibility change handlers
 
             // Check service worker state periodically (mobile browsers can be flaky)
             const checkServiceWorkerState = () => {

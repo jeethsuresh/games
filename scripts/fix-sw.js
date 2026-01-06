@@ -70,6 +70,19 @@ swContent = swContent.replace(
   ''
 );
 
+// Remove _buildManifest.js from precache (App Router doesn't generate this consistently)
+// This file causes 404 errors during precaching
+swContent = swContent.replace(
+  /\{url:"\/_next\/static\/[^"]+\/_buildManifest\.js"[^}]*\},?/g,
+  ''
+);
+
+// Remove _ssgManifest.js from precache if it doesn't exist (App Router doesn't always generate this)
+swContent = swContent.replace(
+  /\{url:"\/_next\/static\/[^"]+\/_ssgManifest\.js"[^}]*\},?/g,
+  ''
+);
+
 // Remove "/" from precache - it's a redirect (307) which Workbox can't precache
 // The redirect goes to /games/number-puzzle which is already in precache
 swContent = swContent.replace(
