@@ -10,45 +10,37 @@ if (!fs.existsSync(swPath)) {
 
 let swContent = fs.readFileSync(swPath, 'utf8');
 
-// Replace the automatic "/" route NetworkFirst with CacheFirst
-// This ensures pages are served from cache IMMEDIATELY when offline
+// Custom strategy: Online = NetworkOnly (don't cache), Offline = CacheFirst (serve from cache)
+// We'll inject plugins into all NetworkFirst handlers to implement this behavior
+
+// Helper function to create online/offline aware plugin
+// Strategy: When online, don't cache responses. When offline, serve from cache only.
+const createOnlineOfflinePlugin = (cacheName) => {
+  // Plugin that:
+  // 1. When online: prevents caching (cacheWillUpdate returns null) - this makes it NetworkOnly behavior
+  // 2. When offline: NetworkFirst will try network (fails), then automatically check cache
+  // 3. fetchDidFail: provides explicit cache fallback when network fails (offline scenario)
+  return `{cacheWillUpdate:async({response})=>{try{if(typeof navigator!=="undefined"&&navigator.onLine!==undefined&&navigator.onLine)return null}catch(e){}return response},fetchDidFail:async({originalRequest})=>{try{const cache=await caches.open("${cacheName}");const cachedResponse=await cache.match(originalRequest);if(cachedResponse)return cachedResponse}catch(e){}return new Response("",{status:503,statusText:"Service Unavailable - Resource not cached"})}}`;
+};
+
+// Replace the automatic "/" route with online/offline aware strategy
 swContent = swContent.replace(
-  /e\.registerRoute\("\/",new e\.(NetworkFirst|StaleWhileRevalidate)\(\{cacheName:"start-url"/g,
-  'e.registerRoute("/",new e.CacheFirst({cacheName:"start-url"'
+  /e\.registerRoute\("\/",new e\.(NetworkFirst|StaleWhileRevalidate|CacheFirst)\(\{cacheName:"start-url"/g,
+  (match) => {
+    const pluginCode = createOnlineOfflinePlugin('start-url');
+    return match.replace(
+      /(cacheName:"start-url")/,
+      `$1,plugins:[${pluginCode}]`
+    );
+  }
 );
 
-// Also change all StaleWhileRevalidate for pages to CacheFirst for offline-first behavior
+// Modify all NetworkFirst handlers to be online/offline aware
 swContent = swContent.replace(
-  /new e\.StaleWhileRevalidate\(\{cacheName:"pages"/g,
-  'new e.CacheFirst({cacheName:"pages"'
-);
-
-// CRITICAL: Replace ALL NetworkFirst handlers with CacheFirst
-// This ensures NO network requests are made - everything comes from cache
-// Network requests should only happen in background for updates, not during fetch events
-swContent = swContent.replace(
-  /new e\.NetworkFirst\(\{cacheName:"next-data"/g,
-  'new e.CacheFirst({cacheName:"next-data"'
-);
-
-// Replace any other NetworkFirst handlers
-swContent = swContent.replace(
-  /new e\.NetworkFirst\(/g,
-  'new e.CacheFirst('
-);
-
-// CRITICAL: Modify ALL CacheFirst strategies to prevent network requests
-// We override fetchOptions to prevent network, and add error handling
-// This ensures NO network requests during fetch events - everything from cache only
-swContent = swContent.replace(
-  /new e\.CacheFirst\(\{cacheName:"([^"]+)"/g,
+  /new e\.NetworkFirst\(\{cacheName:"([^"]+)"/g,
   (match, cacheName) => {
-    // Check if plugins array already exists  
     const hasPlugins = match.includes('plugins:');
-    // Plugin that prevents network requests entirely
-    // Using 'only-if-cached' makes fetch fail if not in cache, preventing network
-    // fetchDidFail provides fallback to check cache one more time before giving up
-    const pluginCode = `{fetchOptions:{cache:"only-if-cached"},fetchDidFail:async({originalRequest})=>{try{const cache=await caches.open("${cacheName}");const response=await cache.match(originalRequest);if(response)return response}catch(e){}return new Response("",{status:503,statusText:"Service Unavailable - Resource not cached"})}}`;
+    const pluginCode = createOnlineOfflinePlugin(cacheName);
     
     if (hasPlugins) {
       // Add our plugin to existing plugins array
@@ -59,6 +51,46 @@ swContent = swContent.replace(
     } else {
       // Add plugins array with our plugin
       return match + `,plugins:[${pluginCode}]`;
+    }
+  }
+);
+
+// Also handle StaleWhileRevalidate - convert to NetworkFirst with online/offline logic
+swContent = swContent.replace(
+  /new e\.StaleWhileRevalidate\(\{cacheName:"([^"]+)"/g,
+  (match, cacheName) => {
+    const hasPlugins = match.includes('plugins:');
+    const pluginCode = createOnlineOfflinePlugin(cacheName);
+    // Replace StaleWhileRevalidate with NetworkFirst
+    const newMatch = match.replace('StaleWhileRevalidate', 'NetworkFirst');
+    
+    if (hasPlugins) {
+      return newMatch.replace(
+        /plugins:\[/,
+        `plugins:[${pluginCode},`
+      );
+    } else {
+      return newMatch + `,plugins:[${pluginCode}]`;
+    }
+  }
+);
+
+// Handle any CacheFirst handlers - convert to NetworkFirst with online/offline logic
+swContent = swContent.replace(
+  /new e\.CacheFirst\(\{cacheName:"([^"]+)"/g,
+  (match, cacheName) => {
+    const hasPlugins = match.includes('plugins:');
+    const pluginCode = createOnlineOfflinePlugin(cacheName);
+    // Replace CacheFirst with NetworkFirst
+    const newMatch = match.replace('CacheFirst', 'NetworkFirst');
+    
+    if (hasPlugins) {
+      return newMatch.replace(
+        /plugins:\[/,
+        `plugins:[${pluginCode},`
+      );
+    } else {
+      return newMatch + `,plugins:[${pluginCode}]`;
     }
   }
 );
@@ -112,6 +144,7 @@ if (precacheMatch) {
 }
 
 fs.writeFileSync(swPath, swContent, 'utf8');
-console.log('✓ Fixed service worker: All routes use CacheFirst with network requests disabled');
-console.log('✓ Network requests are prevented - everything served from cache only');
+console.log('✓ Fixed service worker: Online = NetworkOnly (no cache), Offline = CacheFirst (cache only)');
+console.log('✓ When online: requests go to network and responses are NOT cached');
+console.log('✓ When offline: requests are served from cache only');
 

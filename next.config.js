@@ -6,10 +6,10 @@ const withPWA = require('next-pwa')({
   // To test offline capabilities, use production mode: npm run build && npm start
   disable: process.env.NODE_ENV === 'development',
   runtimeCaching: [
-    // Cache static assets (icons, images, fonts) with CacheFirst - most specific first
+    // Static assets - use NetworkFirst so we can inject online/offline logic
     {
       urlPattern: /^https?:\/\/.*\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff|woff2|ttf|eot)$/,
-      handler: 'CacheFirst',
+      handler: 'NetworkFirst',
       options: {
         cacheName: 'static-assets',
         expiration: {
@@ -18,10 +18,10 @@ const withPWA = require('next-pwa')({
         },
       },
     },
-    // Cache manifest and service worker
+    // Manifest and service worker files
     {
       urlPattern: /^https?:\/\/.*\/(manifest\.json|sw\.js|workbox-.*\.js)$/,
-      handler: 'CacheFirst',
+      handler: 'NetworkFirst',
       options: {
         cacheName: 'pwa-files',
         expiration: {
@@ -30,10 +30,10 @@ const withPWA = require('next-pwa')({
         },
       },
     },
-    // Cache Next.js static chunks and CSS
+    // Next.js static chunks and CSS
     {
       urlPattern: /^https?:\/\/.*\/_next\/static\/.*/,
-      handler: 'CacheFirst',
+      handler: 'NetworkFirst',
       options: {
         cacheName: 'next-static',
         expiration: {
@@ -42,11 +42,10 @@ const withPWA = require('next-pwa')({
         },
       },
     },
-    // Cache Next.js data routes with CacheFirst - NO NETWORK REQUESTS
-    // All data should be cached and served from cache immediately
+    // Next.js data routes
     {
       urlPattern: /^https?:\/\/.*\/_next\/data\/.*/,
-      handler: 'CacheFirst',
+      handler: 'NetworkFirst',
       options: {
         cacheName: 'next-data',
         expiration: {
@@ -58,12 +57,7 @@ const withPWA = require('next-pwa')({
         },
       },
     },
-    // Don't cache root "/" route - it's a redirect and should always fetch fresh
-    // This prevents blank pages when the redirect is cached incorrectly
-    // The root route will use the default NetworkFirst strategy from next-pwa
-    // Cache HTML pages - CRITICAL for offline support
-    // Use CacheFirst: serves from cache IMMEDIATELY, only fetches if not cached
-    // This ensures pages work offline - they must be visited once while online first
+    // HTML pages - use NetworkFirst so we can inject online/offline logic
     {
       urlPattern: ({ url, request }) => {
         // Exclude _next routes, API routes, and files with extensions
@@ -77,7 +71,7 @@ const withPWA = require('next-pwa')({
                request.headers.get('accept')?.includes('text/html') ||
                (!url.pathname.includes('.'));
       },
-      handler: 'CacheFirst',
+      handler: 'NetworkFirst',
       options: {
         cacheName: 'pages',
         expiration: {
