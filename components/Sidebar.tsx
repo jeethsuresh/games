@@ -6,7 +6,6 @@ import { useState } from "react";
 import { games } from "@/app/games/games.config";
 import { getDailyPuzzleDate } from "@/utils/dailyPuzzle";
 import { usePuzzleStore } from "@/store/puzzleStore";
-import { InstallPrompt } from "@/components/InstallPrompt";
 
 function formatDateForDisplay(dateString: string): string {
   const date = new Date(dateString + "T00:00:00");
@@ -184,11 +183,6 @@ export default function Sidebar() {
               );
             })}
           </nav>
-
-          {/* Install CTA at the bottom */}
-          <div className="mt-auto pt-6">
-            <InstallPrompt />
-          </div>
         </div>
       </aside>
     </>

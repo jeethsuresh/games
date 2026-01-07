@@ -8,8 +8,7 @@ export default function Home() {
   const router = useRouter();
   
   useEffect(() => {
-    // Client-side redirect that works with service workers
-    // This ensures the redirect works even when served from cache
+    // Client-side redirect to first game
     if (games.length > 0) {
       router.replace(`/games/${games[0].id}`);
     }
