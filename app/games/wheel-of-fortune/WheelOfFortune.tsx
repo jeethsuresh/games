@@ -2,36 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { getDailyPuzzleDate, SeededRandom } from "@/utils/dailyPuzzle";
-
-// Words of various lengths (5-9 letters) for the game
-const WORDS: string[] = [
-  // 5-letter words
-  "APPLE", "BEACH", "CHAIR", "DANCE", "EARTH", "FLAME", "GLASS", "HEART",
-  "IMAGE", "JAZZY", "KNIFE", "LEMON", "MUSIC", "NIGHT", "OCEAN", "PEACE",
-  "QUICK", "RIVER", "SMILE", "TIGER", "UNITY", "VALUE", "WATER", "XENON",
-  "YOUTH", "ZEBRA", "BRAVE", "CLOUD", "DREAM", "EAGLE", "FOCUS", "GHOST",
-  "HAPPY", "IVORY", "JOKER", "KNEEL", "LIGHT", "MAGIC", "NOISE", "OLIVE",
-  "PILOT", "QUART", "ROBOT", "STORM", "TRAIN", "URBAN", "VOCAL", "WHEEL",
-  // 6-letter words
-  "BANANA", "BRIDGE", "CIRCLE", "DANCER", "EAGLES", "FAMILY", "GARDEN", "HAPPEN",
-  "ISLAND", "JUNGLE", "KITTEN", "LETTER", "MAGNET", "NATURE", "ORANGE", "PENCIL",
-  "QUARTZ", "RABBIT", "SILVER", "TICKET", "VICTOR", "WINDOW", "YELLOW", "ZOMBIE",
-  "BOTTLE", "CAMERA", "DINNER", "EFFORT", "FINGER", "GALAXY", "HAMMER", "INSECT",
-  "JACKET", "KITCHEN", "LADDER", "MOMENT", "NEPHEW", "OFFICE", "POCKET", "RADIO",
-  // 7-letter words
-  "ANIMALS", "BALANCE", "CABINET", "DANCING", "FACTORY", "GALLERY", "HAPPILY", "IMAGINE",
-  "JOURNEY", "KITTENS", "LIBRARY", "MACHINE", "NATURAL", "OUTDOOR", "PACKAGE", "QUALITY",
-  "RAINBOW", "SCIENCE", "TRAVELS", "VICTORY", "WELCOME", "YELLOWS", "ZOMBIES", "BATTERY",
-  "CANDLES", "DINNERS", "EFFORTS", "FINGERS", "GALAXIES", "HAMMERS", "JACKETS", "KITCHENS",
-  // 8-letter words
-  "ANIMATED", "BALANCED", "CABINETS", "FACTORIES", "GALLERIES", "HAPPINESS", "IMAGINED", "JOURNEYS",
-  "LIBRARIES", "MACHINES", "NATURALLY", "OUTDOORS", "PACKAGES", "QUALITIES", "RAINBOWS", "SCIENCES",
-  "TRAVELED", "VICTORIES", "WELCOMED", "BATTERIES", "CANDLESTICK", "DINNERTIME", "ELEPHANT", "UNIVERSE",
-  // 9-letter words
-  "ANIMATION", "BALANCING", "CABINETRY", "DANCINGLY", "FACTORING", "HAPPINESS", "IMAGINING", "JOURNEYED",
-  "LIBRARIAN", "MACHINERY", "NATURALLY", "PACKAGING", "QUALIFIED", "RAINBOWED", "SCIENTIST", "TRAVELING",
-  "VICTORIOUS", "WELCOMING", "BATTERING", "ELEPHANTS", "UNIVERSAL", "CANDLESTICKS", "DINNERTIMES"
-];
+import { loadAllWords, loadTargetWords } from "./wordLoader";
 
 // Letter frequency in English (most common to least common)
 // We'll map these to wheel segments from highest value (200) to lowest (40)
@@ -57,19 +28,33 @@ export function WheelOfFortune() {
   const [targetWord, setTargetWord] = useState<string>("");
   const [wheelSegments, setWheelSegments] = useState<WheelSegment[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [validWords, setValidWords] = useState<Set<string>>(new Set());
 
   // Track used letters to ensure uniqueness
   const [usedLetters, setUsedLetters] = useState<Set<string>>(new Set());
 
   // Initialize game data on client side only
   useEffect(() => {
-    const puzzleDate = getDailyPuzzleDate();
-    const rng = new SeededRandom(`wheel-${puzzleDate}`);
-    
-    // Get daily target word (5-9 letters)
-    const validWords = WORDS.filter(word => word.length >= 5 && word.length <= 9);
-    const wordIndex = rng.nextInt(0, validWords.length);
-    const word = validWords[wordIndex];
+    const initializeGame = async () => {
+      // Load words in parallel
+      const [allWords, targetWords] = await Promise.all([
+        loadAllWords(),
+        loadTargetWords()
+      ]);
+
+      if (targetWords.length === 0) {
+        console.error('No target words loaded');
+        return;
+      }
+
+      setValidWords(allWords);
+
+      const puzzleDate = getDailyPuzzleDate();
+      const rng = new SeededRandom(`wheel-${puzzleDate}`);
+      
+      // Get daily target word from words_final.txt (5-9 letters)
+      const wordIndex = rng.nextInt(0, targetWords.length);
+      const word = targetWords[wordIndex];
     
     // Create wheel segments with unique letters mapped by frequency
     const segments: WheelSegment[] = [];
@@ -99,10 +84,13 @@ export function WheelOfFortune() {
       [segments[i], segments[j]] = [segments[j], segments[i]];
     }
     
-    setTargetWord(word);
-    setWheelSegments(segments);
-    setUsedLetters(new Set());
-    setIsInitialized(true);
+      setTargetWord(word);
+      setWheelSegments(segments);
+      setUsedLetters(new Set());
+      setIsInitialized(true);
+    };
+
+    initializeGame();
   }, []);
 
   // Calculate spins based on word length (word length + 2)
@@ -113,6 +101,8 @@ export function WheelOfFortune() {
   const [money, setMoney] = useState(0);
   // Track revealed positions: array where each index corresponds to a position in the word
   const [revealedPositions, setRevealedPositions] = useState<(string | null)[]>([]);
+  // Track all revealed letters (for display purposes)
+  const [revealedLetters, setRevealedLetters] = useState<Set<string>>(new Set());
   const [isSpinning, setIsSpinning] = useState(false);
   const [currentSegment, setCurrentSegment] = useState<number | null>(null);
   const [guesses, setGuesses] = useState<string[]>([]);
@@ -123,6 +113,7 @@ export function WheelOfFortune() {
   useEffect(() => {
     if (targetWord.length > 0) {
       setRevealedPositions(Array(targetWord.length).fill(null));
+      setRevealedLetters(new Set());
       setSpinsRemaining(targetWord.length + 2);
     }
   }, [targetWord]);
@@ -283,6 +274,11 @@ export function WheelOfFortune() {
     }
     setRevealedPositions(newRevealed);
     
+    // Add to revealed letters set (for display)
+    const newRevealedLetters = new Set(revealedLetters);
+    newRevealedLetters.add(letter);
+    setRevealedLetters(newRevealedLetters);
+    
     // Mark letter as used and replace it on the wheel
     const newUsed = new Set(usedLetters);
     newUsed.add(letter);
@@ -307,10 +303,14 @@ export function WheelOfFortune() {
       return;
     }
     
-    // Allow any word of the correct length (can't validate all English words)
-    // Just check it's the right length and contains only letters
+    // Validate the guess is in the word list (words.txt)
     if (!/^[A-Z]+$/.test(guess)) {
       alert("Please enter only letters!");
+      return;
+    }
+    
+    if (!validWords.has(guess)) {
+      alert("Not a valid word! Try another.");
       return;
     }
     
@@ -331,8 +331,8 @@ export function WheelOfFortune() {
     if (guess === targetWord) {
       setGameResult("success");
       setPhase("finished");
-    } else if (guesses.length >= 5) {
-      // Allow up to 6 guesses total (0-5 index), so after 6th guess (index 5), game over
+    } else if (guesses.length >= maxGuesses - 1) {
+      // Game over when we've used all guesses (guesses.length is 0-indexed, so maxGuesses - 1)
       setGameResult("failure");
       setPhase("finished");
     }
@@ -387,8 +387,61 @@ export function WheelOfFortune() {
     return colors[position];
   };
 
+  // Track letter states for keyboard (green = correct position, yellow = wrong position, gray = not in word, default = unused)
+  const getLetterState = (letter: string): "correct" | "present" | "absent" | "unused" => {
+    // Check all guesses to find the best state for this letter
+    let bestState: "correct" | "present" | "absent" | "unused" = "unused";
+    
+    for (const guess of guesses) {
+      for (let i = 0; i < guess.length; i++) {
+        if (guess[i] === letter) {
+          const colors = getLetterColors(guess);
+          if (colors[i] === "bg-green-500") {
+            bestState = "correct";
+            break; // Green is best, no need to check further
+          } else if (colors[i] === "bg-yellow-500") {
+            if (bestState === "unused" || bestState === "absent") {
+              bestState = "present";
+            }
+          } else if (colors[i] === "bg-gray-500" && bestState === "unused") {
+            bestState = "absent";
+          }
+        }
+      }
+      if (bestState === "correct") break; // Already found best state
+    }
+    
+    return bestState;
+  };
+
+  // Handle keyboard letter click
+  const handleKeyboardLetter = (letter: string) => {
+    if (currentGuess.length < targetWord.length && money >= 25) {
+      setCurrentGuess(currentGuess + letter);
+    }
+  };
+
+  // Handle backspace
+  const handleBackspace = () => {
+    setCurrentGuess(currentGuess.slice(0, -1));
+  };
+
+  // QWERTY keyboard layout
+  const keyboardRows = [
+    ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
+    ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
+    ["Z", "X", "C", "V", "B", "N", "M"]
+  ];
+
   // Calculate wheel segment positions
   const segmentAngle = wheelSegments.length > 0 ? 360 / wheelSegments.length : 0;
+
+  // Calculate max guesses based on word length
+  // Formula: 1 + word.length + (2 if word.length > 6)
+  const maxGuesses = useMemo(() => {
+    if (targetWord.length === 0) return 6;
+    return 1 + targetWord.length + (targetWord.length > 6 ? 2 : 0);
+  }, [targetWord.length]);
 
   // Function to calculate which segment is at the pointer for a given rotation
   const getSegmentAtPointer = (rot: number): number => {
@@ -430,16 +483,16 @@ export function WheelOfFortune() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6 text-center">Wheel of Fortune</h1>
+    <div className="max-w-4xl mx-auto px-2 sm:px-4">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6 text-center">Wheel of Fortune</h1>
       
-      <div className="mb-6 text-center">
-        <div className="text-xl mb-2">
+      <div className="mb-4 sm:mb-6 text-center">
+        <div className="text-lg sm:text-xl mb-2">
           <span className="font-semibold">Money: </span>
           <span className="text-green-600">${money}</span>
         </div>
         {phase === "spinning" && (
-          <div className="text-lg">
+          <div className="text-base sm:text-lg">
             <span className="font-semibold">Spins Remaining: </span>
             <span>{spinsRemaining}</span>
           </div>
@@ -447,11 +500,11 @@ export function WheelOfFortune() {
       </div>
 
       {phase === "spinning" && (
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           {/* Wheel */}
-          <div className="relative mx-auto mb-8" style={{ width: "500px", height: "500px" }}>
+          <div className="relative mx-auto mb-6 sm:mb-8 w-full max-w-[500px] aspect-square">
             <div
-              className="absolute inset-0 rounded-full border-8 border-gray-800 shadow-2xl"
+              className="absolute inset-0 rounded-full border-4 sm:border-8 border-gray-800 shadow-2xl"
               style={{
                 transform: `rotate(${rotation}deg)`,
                 transition: isSpinning 
@@ -480,12 +533,12 @@ export function WheelOfFortune() {
                     <div
                       className="text-white font-bold text-center"
                       style={{
-                        transform: "translate(180px, -50%)",
+                        transform: "translate(calc(min(30vw, 180px)), -50%)",
                         textShadow: "2px 2px 4px rgba(0,0,0,0.5)",
                       }}
                     >
-                      <div className="text-lg">${segment.value}</div>
-                      <div className="text-2xl font-extrabold">{segment.letter}</div>
+                      <div className="text-xs sm:text-lg">${segment.value}</div>
+                      <div className="text-lg sm:text-2xl font-extrabold">{segment.letter}</div>
                     </div>
                   </div>
                 );
@@ -494,30 +547,30 @@ export function WheelOfFortune() {
             
             {/* Pointer */}
             <div
-              className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 z-10"
+              className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1 sm:-translate-y-2 z-10"
               style={{
                 width: 0,
                 height: 0,
-                borderLeft: "20px solid transparent",
-                borderRight: "20px solid transparent",
-                borderTop: "40px solid #1f2937",
+                borderLeft: "clamp(12px, 3vw, 20px) solid transparent",
+                borderRight: "clamp(12px, 3vw, 20px) solid transparent",
+                borderTop: "clamp(24px, 6vw, 40px) solid #1f2937",
                 filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))",
               }}
             />
             
             {/* Center circle */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 bg-gray-800 rounded-full border-4 border-gray-600 z-10 flex items-center justify-center">
-              <div className="text-white font-bold text-sm">SPIN</div>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 sm:w-20 sm:h-20 bg-gray-800 rounded-full border-2 sm:border-4 border-gray-600 z-10 flex items-center justify-center">
+              <div className="text-white font-bold text-xs sm:text-sm">SPIN</div>
             </div>
           </div>
 
           {/* Spin button */}
           {!isSpinning && selectedSegmentIndex === null && (
-            <div className="text-center mb-6">
+            <div className="text-center mb-4 sm:mb-6">
               <button
                 onClick={handleSpin}
                 disabled={spinsRemaining === 0}
-                className="px-8 py-4 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed text-xl font-bold"
+                className="px-6 sm:px-8 py-3 sm:py-4 bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-lg sm:text-xl font-bold touch-manipulation min-h-[44px]"
               >
                 Spin the Wheel
               </button>
@@ -526,23 +579,23 @@ export function WheelOfFortune() {
 
           {/* Choice buttons after spin */}
           {selectedSegmentIndex !== null && !isSpinning && selectedSegmentIndex >= 0 && selectedSegmentIndex < wheelSegments.length && (
-            <div className="text-center mb-6">
-              <div className="mb-4 text-lg">
+            <div className="text-center mb-4 sm:mb-6">
+              <div className="mb-3 sm:mb-4 text-base sm:text-lg">
                 <p className="font-semibold">You landed on:</p>
-                <p className="text-2xl">
+                <p className="text-xl sm:text-2xl">
                   ${wheelSegments[selectedSegmentIndex].value} - Letter: {wheelSegments[selectedSegmentIndex].letter}
                 </p>
               </div>
-              <div className="flex gap-4 justify-center">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-stretch sm:items-center px-4">
                 <button
                   onClick={handleTakeMoney}
-                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
+                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 active:bg-green-800 font-semibold touch-manipulation min-h-[44px] text-base sm:text-lg"
                 >
                   Take ${wheelSegments[selectedSegmentIndex].value}
                 </button>
                 <button
                   onClick={handleRevealLetter}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 font-semibold touch-manipulation min-h-[44px] text-base sm:text-lg"
                 >
                   Reveal if "{wheelSegments[selectedSegmentIndex].letter}" is in word
                 </button>
@@ -550,14 +603,38 @@ export function WheelOfFortune() {
             </div>
           )}
 
+          {/* Revealed letters display */}
+          {revealedLetters.size > 0 && (
+            <div className="mt-4 sm:mt-6 mb-4 sm:mb-6">
+              <p className="text-center font-semibold mb-2 text-sm sm:text-base">Revealed Letters:</p>
+              <div className="flex flex-wrap gap-2 justify-center px-2">
+                {Array.from(revealedLetters).sort().map((letter) => {
+                  const isInWord = targetWord.includes(letter);
+                  return (
+                    <div
+                      key={letter}
+                      className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-sm sm:text-base font-bold rounded border-2 ${
+                        isInWord
+                          ? "bg-green-500 text-white border-green-600"
+                          : "bg-gray-300 text-gray-700 border-gray-400"
+                      }`}
+                    >
+                      {letter}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Word display with blank boxes */}
-          <div className="mt-6 mb-6">
-            <p className="text-center font-semibold mb-4">The Word:</p>
-            <div className="flex gap-3 justify-center flex-wrap">
+          <div className="mt-4 sm:mt-6 mb-4 sm:mb-6">
+            <p className="text-center font-semibold mb-3 sm:mb-4 text-base sm:text-lg">The Word:</p>
+            <div className="flex gap-2 sm:gap-3 justify-center flex-wrap px-2">
               {revealedPositions.map((letter, index) => (
                 <div
                   key={index}
-                  className={`w-16 h-16 flex items-center justify-center text-3xl font-bold rounded border-4 ${
+                  className={`w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl font-bold rounded border-2 sm:border-4 ${
                     letter
                       ? "bg-green-500 text-white border-green-600"
                       : "bg-gray-200 border-gray-400"
@@ -578,13 +655,13 @@ export function WheelOfFortune() {
               Each guess costs <span className="font-bold text-red-600">$25</span>
             </p>
             {/* Word display with revealed letters */}
-            <div className="mb-6">
-              <p className="text-center font-semibold mb-4">The Word:</p>
-              <div className="flex gap-3 justify-center flex-wrap">
+            <div className="mb-4 sm:mb-6">
+              <p className="text-center font-semibold mb-3 sm:mb-4 text-base sm:text-lg">The Word:</p>
+              <div className="flex gap-2 sm:gap-3 justify-center flex-wrap px-2">
                 {revealedPositions.map((letter, index) => (
                   <div
                     key={index}
-                    className={`w-16 h-16 flex items-center justify-center text-3xl font-bold rounded border-4 ${
+                    className={`w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center text-2xl sm:text-3xl font-bold rounded border-2 sm:border-4 ${
                       letter
                         ? "bg-green-500 text-white border-green-600"
                         : "bg-gray-200 border-gray-400"
@@ -598,11 +675,11 @@ export function WheelOfFortune() {
           </div>
 
           {/* Guess grid */}
-          <div className="space-y-2 mb-8">
-            {Array.from({ length: 6 }).map((_, rowIndex) => {
+          <div className="space-y-1 sm:space-y-2 mb-4 sm:mb-6">
+            {Array.from({ length: maxGuesses }).map((_, rowIndex) => {
               const guess = guesses[rowIndex] || "";
               return (
-                <div key={rowIndex} className="flex gap-2 justify-center">
+                <div key={rowIndex} className="flex gap-1 sm:gap-2 justify-center px-2">
                   {Array.from({ length: targetWord.length }).map((_, colIndex) => {
                     const letter = guess[colIndex] || "";
                     const color = guess
@@ -611,7 +688,7 @@ export function WheelOfFortune() {
                     return (
                       <div
                         key={colIndex}
-                        className={`w-16 h-16 flex items-center justify-center text-2xl font-bold text-white rounded ${color}`}
+                        className={`w-10 h-10 sm:w-16 sm:h-16 flex items-center justify-center text-lg sm:text-2xl font-bold text-white rounded ${color}`}
                       >
                         {letter}
                       </div>
@@ -622,13 +699,13 @@ export function WheelOfFortune() {
             })}
           </div>
 
-          <form onSubmit={handleGuess} className="text-center">
-            <div className="flex gap-4 items-center justify-center mb-2">
+          <form onSubmit={handleGuess} className="text-center px-2 mb-4 sm:mb-6">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center justify-center mb-2">
               <input
                 type="text"
                 value={currentGuess}
                 onChange={(e) => setCurrentGuess(e.target.value.toUpperCase().slice(0, targetWord.length))}
-                className="px-4 py-2 text-2xl text-center border-2 border-gray-300 rounded-lg focus:outline-none focus:border-gray-900 uppercase w-48"
+                className="px-4 py-3 sm:py-2 text-xl sm:text-2xl text-center border-2 border-gray-300 rounded-lg focus:outline-none focus:border-gray-900 uppercase w-full sm:w-48 min-h-[44px]"
                 maxLength={targetWord.length}
                 autoFocus
                 disabled={money < 25}
@@ -637,21 +714,71 @@ export function WheelOfFortune() {
               <button
                 type="submit"
                 disabled={currentGuess.length !== targetWord.length || money < 25}
-                className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed touch-manipulation min-h-[44px] text-base sm:text-lg font-semibold"
               >
                 Guess (-$25)
               </button>
             </div>
-            <p className="text-sm text-gray-500">
+            <p className="text-xs sm:text-sm text-gray-500 mb-4">
               {currentGuess.length}/{targetWord.length} letters
             </p>
           </form>
+
+          {/* QWERTY Keyboard */}
+          <div className="px-2 mb-4 sm:mb-6">
+            <div className="flex flex-col gap-1.5 sm:gap-2 max-w-2xl mx-auto">
+              {keyboardRows.map((row, rowIndex) => (
+                <div key={rowIndex} className="flex gap-1 sm:gap-1.5 justify-center">
+                  {row.map((letter) => {
+                    const state = getLetterState(letter);
+                    const isDisabled = money < 25 || currentGuess.length >= targetWord.length;
+                    let bgColor = "bg-gray-200";
+                    let textColor = "text-gray-900";
+                    
+                    if (state === "correct") {
+                      bgColor = "bg-green-500";
+                      textColor = "text-white";
+                    } else if (state === "present") {
+                      bgColor = "bg-yellow-500";
+                      textColor = "text-white";
+                    } else if (state === "absent") {
+                      bgColor = "bg-gray-500";
+                      textColor = "text-white";
+                    }
+                    
+                    return (
+                      <button
+                        key={letter}
+                        type="button"
+                        onClick={() => handleKeyboardLetter(letter)}
+                        disabled={isDisabled}
+                        className={`${bgColor} ${textColor} px-2 sm:px-3 py-2 sm:py-3 rounded text-sm sm:text-base font-semibold hover:opacity-80 active:opacity-70 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[36px] sm:min-h-[44px] min-w-[28px] sm:min-w-[36px]`}
+                      >
+                        {letter}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+              {/* Backspace button */}
+              <div className="flex justify-center mt-1">
+                <button
+                  type="button"
+                  onClick={handleBackspace}
+                  disabled={currentGuess.length === 0 || money < 25}
+                  className="bg-gray-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded text-sm sm:text-base font-semibold hover:bg-gray-700 active:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[36px] sm:min-h-[44px]"
+                >
+                  ⌫ Backspace
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
       {phase === "finished" && (
-        <div className="text-center">
-          <div className="text-2xl font-bold mb-4">
+        <div className="text-center px-2">
+          <div className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4">
             {gameResult === "success" ? (
               <span className="text-green-600">Congratulations! You won!</span>
             ) : (
@@ -659,12 +786,12 @@ export function WheelOfFortune() {
             )}
           </div>
           {gameResult === "failure" && (
-            <p className="text-xl mb-4">The word was: <span className="font-bold">{targetWord}</span></p>
+            <p className="text-lg sm:text-xl mb-3 sm:mb-4">The word was: <span className="font-bold">{targetWord}</span></p>
           )}
-          <p className="text-lg mb-4">Final Money: <span className="font-semibold text-green-600">${money}</span></p>
+          <p className="text-base sm:text-lg mb-4">Final Money: <span className="font-semibold text-green-600">${money}</span></p>
           <button
             onClick={() => window.location.reload()}
-            className="px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+            className="px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 active:bg-gray-700 touch-manipulation min-h-[44px] text-base sm:text-lg font-semibold"
           >
             Play Again
           </button>
