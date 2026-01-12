@@ -19,7 +19,8 @@ interface SavedGameState {
   numbers: NumberWithState[];
   history: string[];
   distanceEmojis: string[];
-  elapsedTime: number;
+  startTime: number | null; // Timestamp when game started
+  endTime: number | null; // Timestamp when game ended (if ended)
   gameEnded: boolean;
   target: number;
   puzzleDate: string; // For daily mode - to check if it's a new day
@@ -187,10 +188,19 @@ export function NumberPuzzle() {
   const [selectedNumberIndex, setSelectedNumberIndex] = useState<number | null>(null);
   const [selectedOperation, setSelectedOperation] = useState<string | null>(null);
   const [previousStates, setPreviousStates] = useState<GameState[]>([]);
-  const [elapsedTime, setElapsedTime] = useState(0);
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [endTime, setEndTime] = useState<number | null>(null);
   const [gameEnded, setGameEnded] = useState(false);
+  const [currentTime, setCurrentTime] = useState(Date.now()); // For triggering re-renders to update timer
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasCheckedDateRef = useRef(false);
+
+  // Calculate elapsed time in seconds
+  const elapsedTime = useMemo(() => {
+    if (!startTime) return 0;
+    const end = endTime || currentTime;
+    return Math.floor((end - startTime) / 1000);
+  }, [startTime, endTime, currentTime]);
 
   // Check and update to latest daily puzzle date on first load if daily mode is on
   useEffect(() => {
@@ -229,7 +239,13 @@ export function NumberPuzzle() {
       // Try to load saved state for this specific date
       const savedState = loadGameState(dailyMode ? selectedDate : undefined);
       
-      if (savedState && savedState.dailyMode === dailyMode) {
+      // Check if saved state is for the current date/puzzle
+      const dateKey = dailyMode ? selectedDate : "random";
+      const isSavedStateForCurrentDate = savedState && 
+        savedState.dailyMode === dailyMode && 
+        savedState.puzzleDate === dateKey;
+      
+      if (isSavedStateForCurrentDate) {
         // Restore saved state (including solution)
         const generated = generateSolvablePuzzle(seed);
         setPuzzleData(generated);
@@ -238,7 +254,8 @@ export function NumberPuzzle() {
         setNumbers(savedState.numbers);
         setHistory(savedState.history);
         setDistanceEmojis(savedState.distanceEmojis);
-        setElapsedTime(savedState.elapsedTime);
+        setStartTime(savedState.startTime ?? null);
+        setEndTime(savedState.endTime ?? null);
         setGameEnded(savedState.gameEnded);
         setPreviousStates(savedState.previousStates || []); // Restore undo history
       } else {
@@ -248,6 +265,10 @@ export function NumberPuzzle() {
         setTarget(generated.target);
         setSolution(generated.solution);
         setNumbers(generated.numbers.map((value) => ({ value, used: false })));
+        setPreviousStates([]); // Clear undo history for new puzzle
+        setStartTime(Date.now()); // Start timer for new puzzle
+        setEndTime(null); // Reset end time
+        setGameEnded(false); // Reset game ended state
       }
     }
   }, [puzzleData, dailyMode, selectedDate]);
@@ -262,7 +283,13 @@ export function NumberPuzzle() {
       // Reset solution visibility when puzzle changes
       setShowSolution(false);
       
-      if (savedState && savedState.dailyMode === dailyMode) {
+      // Check if saved state is for the current date/puzzle
+      const dateKey = dailyMode ? selectedDate : "random";
+      const isSavedStateForCurrentDate = savedState && 
+        savedState.dailyMode === dailyMode && 
+        savedState.puzzleDate === dateKey;
+      
+      if (isSavedStateForCurrentDate) {
         // Restore saved state
         const generated = generateSolvablePuzzle(seed);
         setPuzzleData(generated);
@@ -271,11 +298,12 @@ export function NumberPuzzle() {
         setNumbers(savedState.numbers);
         setHistory(savedState.history);
         setDistanceEmojis(savedState.distanceEmojis);
-        setElapsedTime(savedState.elapsedTime);
+        setStartTime(savedState.startTime ?? null);
+        setEndTime(savedState.endTime ?? null);
         setGameEnded(savedState.gameEnded);
         setPreviousStates(savedState.previousStates || []); // Restore undo history
       } else {
-        // Generate new puzzle
+        // Generate new puzzle (new day or no saved state)
         const generated = generateSolvablePuzzle(seed);
         setPuzzleData(generated);
         setTarget(generated.target);
@@ -283,11 +311,13 @@ export function NumberPuzzle() {
         setNumbers(generated.numbers.map((value) => ({ value, used: false })));
         setHistory([]);
         setDistanceEmojis([]);
-        setElapsedTime(0);
+        setStartTime(Date.now()); // Start timer for new puzzle
+        setEndTime(null); // Reset end time
         setGameEnded(false);
+        setPreviousStates([]); // Clear undo history for new puzzle
       }
     }
-  }, [dailyMode, selectedDate]);
+  }, [dailyMode, selectedDate, puzzleData]);
 
   // Save state whenever it changes
   useEffect(() => {
@@ -297,7 +327,8 @@ export function NumberPuzzle() {
         numbers,
         history,
         distanceEmojis,
-        elapsedTime,
+        startTime,
+        endTime,
         gameEnded,
         target,
         puzzleDate: dateKey,
@@ -309,26 +340,38 @@ export function NumberPuzzle() {
       const storageKey = dailyMode ? `numberPuzzleState_${selectedDate}` : "numberPuzzleState_random";
       localStorage.setItem(storageKey, JSON.stringify(savedState));
     }
-  }, [numbers, history, distanceEmojis, elapsedTime, gameEnded, target, dailyMode, puzzleData, solution, selectedDate, previousStates]);
+  }, [numbers, history, distanceEmojis, startTime, endTime, gameEnded, target, dailyMode, puzzleData, solution, selectedDate, previousStates]);
 
-  // Timer effect
+  // Start timer when puzzle loads and numbers are available
   useEffect(() => {
-    if (!gameEnded) {
+    if (puzzleData && numbers.length > 0 && !startTime && !gameEnded) {
+      setStartTime(Date.now());
+      setCurrentTime(Date.now());
+    }
+  }, [puzzleData, numbers.length, startTime, gameEnded]);
+
+  // Timer effect - update currentTime every second to trigger re-render and recalculate elapsedTime
+  useEffect(() => {
+    // Clear any existing interval first
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    // Update currentTime every second if game hasn't ended and puzzle is loaded
+    if (!gameEnded && puzzleData && numbers.length > 0 && startTime) {
       intervalRef.current = setInterval(() => {
-        setElapsedTime((prev) => prev + 1);
+        setCurrentTime(Date.now());
       }, 1000);
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
     }
 
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
     };
-  }, [gameEnded]);
+  }, [gameEnded, puzzleData, numbers.length, startTime]);
 
   // Check for game end
   useEffect(() => {
@@ -341,9 +384,12 @@ export function NumberPuzzle() {
     const distance = Math.abs(closest - target);
     
     if (distance === 0 || (available.length === 1 && distance !== 0)) {
-      setGameEnded(true);
+      if (!gameEnded) {
+        setGameEnded(true);
+        setEndTime(Date.now()); // Record end time when game ends
+      }
     }
-  }, [numbers, target]);
+  }, [numbers, target, gameEnded]);
 
   const operations = [
     { symbol: "+", name: "add", color: "bg-green-500 hover:bg-green-600" },
@@ -469,7 +515,8 @@ export function NumberPuzzle() {
       localStorage.removeItem(`numberPuzzleState_${selectedDate}`);
     }
     
-    setElapsedTime(0);
+    setStartTime(Date.now()); // Start new timer
+    setEndTime(null); // Reset end time
     setGameEnded(false);
     // Regenerate puzzle with same seed if daily mode, or new timestamp seed for random mode
     const seed = dailyMode ? selectedDate : `random_${Date.now()}`;
