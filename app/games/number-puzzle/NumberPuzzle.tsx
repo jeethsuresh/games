@@ -192,6 +192,7 @@ export function NumberPuzzle() {
   const hasCheckedDateRef = useRef(false);
   const previousTargetRef = useRef<number | null>(null);
   const hasLoadedInitialStateRef = useRef(false);
+  const justLoadedUndoHistoryRef = useRef(false);
 
   // Check and update to latest daily puzzle date on first load if daily mode is on
   useEffect(() => {
@@ -260,8 +261,8 @@ export function NumberPuzzle() {
         // Restore saved state (including solution)
         const generated = generateSolvablePuzzle(seed);
         setPuzzleData(generated);
-        // Use generated target (should match savedState.target for deterministic puzzles)
-        const currentTarget = generated.target;
+        // Use saved state's target to ensure we load the correct undo history
+        const currentTarget = savedState.target;
         setTarget(currentTarget);
         setSolution(savedState.solution || generated.solution); // Use saved solution if available
         setNumbers(savedState.numbers);
@@ -269,10 +270,18 @@ export function NumberPuzzle() {
         setDistanceEmojis(savedState.distanceEmojis);
         setElapsedTime(savedState.elapsedTime);
         setGameEnded(savedState.gameEnded);
-        // Load undo history from separate cache keyed by current target
+        // Load undo history from separate cache keyed by saved target
         const undoHistory = loadUndoHistory(currentTarget, dailyMode ? selectedDate : undefined);
+        // Set flag BEFORE state update to prevent save effect from running
+        justLoadedUndoHistoryRef.current = true;
         setPreviousStates(undoHistory);
+        // Save immediately to ensure it persists
+        saveUndoHistory(currentTarget, dailyMode ? selectedDate : undefined, undoHistory);
         hasLoadedInitialStateRef.current = true;
+        // Reset flag after effects have run
+        setTimeout(() => {
+          justLoadedUndoHistoryRef.current = false;
+        }, 0);
       } else {
         // No saved state for this date, generate new puzzle
         const generated = generateSolvablePuzzle(seed);
@@ -301,8 +310,8 @@ export function NumberPuzzle() {
         // Restore saved state
         const generated = generateSolvablePuzzle(seed);
         setPuzzleData(generated);
-        // Use generated target (should match savedState.target for deterministic puzzles)
-        const currentTarget = generated.target;
+        // Use saved state's target to ensure we load the correct undo history
+        const currentTarget = savedState.target;
         setTarget(currentTarget);
         setSolution(savedState.solution || generated.solution);
         setNumbers(savedState.numbers);
@@ -310,10 +319,18 @@ export function NumberPuzzle() {
         setDistanceEmojis(savedState.distanceEmojis);
         setElapsedTime(savedState.elapsedTime);
         setGameEnded(savedState.gameEnded);
-        // Load undo history from separate cache keyed by current target
+        // Load undo history from separate cache keyed by saved target
         const undoHistory = loadUndoHistory(currentTarget, dailyMode ? selectedDate : undefined);
+        // Set flag BEFORE state update to prevent save effect from running
+        justLoadedUndoHistoryRef.current = true;
         setPreviousStates(undoHistory);
+        // Save immediately to ensure it persists
+        saveUndoHistory(currentTarget, dailyMode ? selectedDate : undefined, undoHistory);
         hasLoadedInitialStateRef.current = true;
+        // Reset flag after effects have run
+        setTimeout(() => {
+          justLoadedUndoHistoryRef.current = false;
+        }, 0);
       } else {
         // Generate new puzzle
         const generated = generateSolvablePuzzle(seed);
@@ -364,7 +381,7 @@ export function NumberPuzzle() {
 
   // Save undo history to separate cache whenever it changes (but only after initial load)
   useEffect(() => {
-    if (target > 0 && hasLoadedInitialStateRef.current) {
+    if (target > 0 && hasLoadedInitialStateRef.current && !justLoadedUndoHistoryRef.current) {
       saveUndoHistory(target, dailyMode ? selectedDate : undefined, previousStates);
     }
   }, [previousStates, target, dailyMode, selectedDate]);
