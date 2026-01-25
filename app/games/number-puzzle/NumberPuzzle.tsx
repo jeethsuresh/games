@@ -226,34 +226,18 @@ export function NumberPuzzle() {
         ? selectedDate 
         : `random_${Date.now()}`;
       
-      // Try to load saved state for this specific date
-      const savedState = loadGameState(dailyMode ? selectedDate : undefined);
-      
-      if (savedState && savedState.dailyMode === dailyMode) {
-        // Restore saved state (including solution)
-        const generated = generateSolvablePuzzle(seed);
-        setPuzzleData(generated);
-        // Use saved state's target to ensure we load the correct undo history
-        const currentTarget = savedState.target;
-        setTarget(currentTarget);
-        setSolution(savedState.solution || generated.solution); // Use saved solution if available
-        setNumbers(savedState.numbers);
-        setHistory(savedState.history);
-        setDistanceEmojis(savedState.distanceEmojis);
-        setElapsedTime(savedState.elapsedTime);
-        setGameEnded(savedState.gameEnded);
-        // Reset undo history on page reload - don't persist it
-        setPreviousStates([]);
-      } else {
-        // No saved state for this date, generate new puzzle
-        const generated = generateSolvablePuzzle(seed);
-        setPuzzleData(generated);
-        setTarget(generated.target);
-        setSolution(generated.solution);
-        setNumbers(generated.numbers.map((value) => ({ value, used: false })));
-        // Clear undo history for new puzzle
-        setPreviousStates([]);
-      }
+      // Always generate fresh puzzle on page load (same target/numbers based on seed, but reset game state)
+      const generated = generateSolvablePuzzle(seed);
+      setPuzzleData(generated);
+      setTarget(generated.target);
+      setSolution(generated.solution);
+      // Reset all numbers to unused state - same numbers, but fresh start
+      setNumbers(generated.numbers.map((value) => ({ value, used: false })));
+      setHistory([]);
+      setDistanceEmojis([]);
+      setElapsedTime(0);
+      setGameEnded(false);
+      setPreviousStates([]);
     }
   }, [puzzleData, dailyMode, selectedDate]);
 
