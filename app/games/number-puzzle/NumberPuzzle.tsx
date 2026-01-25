@@ -191,8 +191,6 @@ export function NumberPuzzle() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasCheckedDateRef = useRef(false);
   const previousTargetRef = useRef<number | null>(null);
-  const hasLoadedInitialStateRef = useRef(false);
-  const justLoadedUndoHistoryRef = useRef(false);
 
   // Check and update to latest daily puzzle date on first load if daily mode is on
   useEffect(() => {
@@ -220,32 +218,6 @@ export function NumberPuzzle() {
     }
   };
 
-  // Load undo history from separate cache keyed by target number
-  const loadUndoHistory = (targetNum: number, date: string | undefined): GameState[] => {
-    try {
-      const dateKey = date || "random";
-      const undoKey = `numberPuzzleUndoHistory_${targetNum}_${dateKey}`;
-      const saved = localStorage.getItem(undoKey);
-      if (!saved) return [];
-      
-      const history: GameState[] = JSON.parse(saved);
-      return history;
-    } catch (e) {
-      return [];
-    }
-  };
-
-  // Save undo history to separate cache keyed by target number
-  const saveUndoHistory = (targetNum: number, date: string | undefined, history: GameState[]) => {
-    try {
-      const dateKey = date || "random";
-      const undoKey = `numberPuzzleUndoHistory_${targetNum}_${dateKey}`;
-      localStorage.setItem(undoKey, JSON.stringify(history));
-    } catch (e) {
-      // Ignore errors
-    }
-  };
-
   // Initialize puzzle only on client side to avoid hydration mismatch
   useEffect(() => {
     if (!puzzleData) {
@@ -270,18 +242,8 @@ export function NumberPuzzle() {
         setDistanceEmojis(savedState.distanceEmojis);
         setElapsedTime(savedState.elapsedTime);
         setGameEnded(savedState.gameEnded);
-        // Load undo history from separate cache keyed by saved target
-        const undoHistory = loadUndoHistory(currentTarget, dailyMode ? selectedDate : undefined);
-        // Set flag BEFORE state update to prevent save effect from running
-        justLoadedUndoHistoryRef.current = true;
-        setPreviousStates(undoHistory);
-        // Save immediately to ensure it persists
-        saveUndoHistory(currentTarget, dailyMode ? selectedDate : undefined, undoHistory);
-        hasLoadedInitialStateRef.current = true;
-        // Reset flag after effects have run
-        setTimeout(() => {
-          justLoadedUndoHistoryRef.current = false;
-        }, 0);
+        // Reset undo history on page reload - don't persist it
+        setPreviousStates([]);
       } else {
         // No saved state for this date, generate new puzzle
         const generated = generateSolvablePuzzle(seed);
@@ -291,7 +253,6 @@ export function NumberPuzzle() {
         setNumbers(generated.numbers.map((value) => ({ value, used: false })));
         // Clear undo history for new puzzle
         setPreviousStates([]);
-        hasLoadedInitialStateRef.current = true;
       }
     }
   }, [puzzleData, dailyMode, selectedDate]);
@@ -319,18 +280,8 @@ export function NumberPuzzle() {
         setDistanceEmojis(savedState.distanceEmojis);
         setElapsedTime(savedState.elapsedTime);
         setGameEnded(savedState.gameEnded);
-        // Load undo history from separate cache keyed by saved target
-        const undoHistory = loadUndoHistory(currentTarget, dailyMode ? selectedDate : undefined);
-        // Set flag BEFORE state update to prevent save effect from running
-        justLoadedUndoHistoryRef.current = true;
-        setPreviousStates(undoHistory);
-        // Save immediately to ensure it persists
-        saveUndoHistory(currentTarget, dailyMode ? selectedDate : undefined, undoHistory);
-        hasLoadedInitialStateRef.current = true;
-        // Reset flag after effects have run
-        setTimeout(() => {
-          justLoadedUndoHistoryRef.current = false;
-        }, 0);
+        // Reset undo history on page reload - don't persist it
+        setPreviousStates([]);
       } else {
         // Generate new puzzle
         const generated = generateSolvablePuzzle(seed);
@@ -344,7 +295,6 @@ export function NumberPuzzle() {
         setGameEnded(false);
         // Clear undo history for new puzzle
         setPreviousStates([]);
-        hasLoadedInitialStateRef.current = true;
       }
     }
   }, [dailyMode, selectedDate]);
@@ -379,12 +329,6 @@ export function NumberPuzzle() {
     previousTargetRef.current = target;
   }, [target]);
 
-  // Save undo history to separate cache whenever it changes (but only after initial load)
-  useEffect(() => {
-    if (target > 0 && hasLoadedInitialStateRef.current && !justLoadedUndoHistoryRef.current) {
-      saveUndoHistory(target, dailyMode ? selectedDate : undefined, previousStates);
-    }
-  }, [previousStates, target, dailyMode, selectedDate]);
 
   // Timer effect
   useEffect(() => {
@@ -534,10 +478,6 @@ export function NumberPuzzle() {
     setPreviousStates(newPreviousStates);
     setSelectedNumberIndex(null);
     setSelectedOperation(null);
-    // Save updated undo history (will be saved via useEffect, but we can also save immediately)
-    if (target > 0) {
-      saveUndoHistory(target, dailyMode ? selectedDate : undefined, newPreviousStates);
-    }
   };
 
   const reset = () => {
@@ -564,8 +504,6 @@ export function NumberPuzzle() {
     setSelectedNumberIndex(null);
     setSelectedOperation(null);
     setPreviousStates([]);
-    // Clear undo history cache for the new target (or same target in daily mode)
-    saveUndoHistory(newTarget, dailyMode ? selectedDate : undefined, []);
   };
 
   const getAvailableNumbers = () => {
