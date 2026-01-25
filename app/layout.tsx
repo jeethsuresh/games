@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import ServiceWorkerUnregister from "@/components/ServiceWorkerUnregister";
 
 export const metadata: Metadata = {
   title: "Jeeth's Games",
@@ -39,6 +40,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="Jeeth's Games" />
       </head>
       <body>
+        <ServiceWorkerUnregister />
         {children}
       </body>
     </html>
