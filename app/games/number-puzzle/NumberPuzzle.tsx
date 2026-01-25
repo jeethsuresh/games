@@ -191,6 +191,7 @@ export function NumberPuzzle() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasCheckedDateRef = useRef(false);
   const previousTargetRef = useRef<number | null>(null);
+  const hasLoadedInitialStateRef = useRef(false);
 
   // Check and update to latest daily puzzle date on first load if daily mode is on
   useEffect(() => {
@@ -271,6 +272,7 @@ export function NumberPuzzle() {
         // Load undo history from separate cache keyed by current target
         const undoHistory = loadUndoHistory(currentTarget, dailyMode ? selectedDate : undefined);
         setPreviousStates(undoHistory);
+        hasLoadedInitialStateRef.current = true;
       } else {
         // No saved state for this date, generate new puzzle
         const generated = generateSolvablePuzzle(seed);
@@ -280,6 +282,7 @@ export function NumberPuzzle() {
         setNumbers(generated.numbers.map((value) => ({ value, used: false })));
         // Clear undo history for new puzzle
         setPreviousStates([]);
+        hasLoadedInitialStateRef.current = true;
       }
     }
   }, [puzzleData, dailyMode, selectedDate]);
@@ -310,6 +313,7 @@ export function NumberPuzzle() {
         // Load undo history from separate cache keyed by current target
         const undoHistory = loadUndoHistory(currentTarget, dailyMode ? selectedDate : undefined);
         setPreviousStates(undoHistory);
+        hasLoadedInitialStateRef.current = true;
       } else {
         // Generate new puzzle
         const generated = generateSolvablePuzzle(seed);
@@ -323,6 +327,7 @@ export function NumberPuzzle() {
         setGameEnded(false);
         // Clear undo history for new puzzle
         setPreviousStates([]);
+        hasLoadedInitialStateRef.current = true;
       }
     }
   }, [dailyMode, selectedDate]);
@@ -348,7 +353,7 @@ export function NumberPuzzle() {
     }
   }, [numbers, history, distanceEmojis, elapsedTime, gameEnded, target, dailyMode, puzzleData, solution, selectedDate]);
 
-  // Clear undo history when target number changes
+  // Clear undo history when target number changes (but not on initial load)
   useEffect(() => {
     if (target > 0 && previousTargetRef.current !== null && previousTargetRef.current !== target) {
       // Target changed - clear undo history for the new target
@@ -357,9 +362,9 @@ export function NumberPuzzle() {
     previousTargetRef.current = target;
   }, [target]);
 
-  // Save undo history to separate cache whenever it changes
+  // Save undo history to separate cache whenever it changes (but only after initial load)
   useEffect(() => {
-    if (target > 0) {
+    if (target > 0 && hasLoadedInitialStateRef.current) {
       saveUndoHistory(target, dailyMode ? selectedDate : undefined, previousStates);
     }
   }, [previousStates, target, dailyMode, selectedDate]);
