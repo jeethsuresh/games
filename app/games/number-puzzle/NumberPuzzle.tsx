@@ -503,6 +503,8 @@ export function NumberPuzzle() {
     }
     
     setGameEnded(false);
+    setForfeited(false);
+    setShowSolution(false);
     // Regenerate puzzle with same seed if daily mode, or new timestamp seed for random mode
     const seed = dailyMode ? selectedDate : `random_${Date.now()}`;
     const generated = generateSolvablePuzzle(seed);
