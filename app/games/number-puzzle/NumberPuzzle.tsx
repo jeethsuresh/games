@@ -19,7 +19,6 @@ interface SavedGameState {
   numbers: NumberWithState[];
   history: string[];
   distanceEmojis: string[];
-  elapsedTime: number;
   gameEnded: boolean;
   target: number;
   puzzleDate: string; // For daily mode - to check if it's a new day
@@ -153,16 +152,6 @@ function getRatingEmoji(distance: number): string {
   return "😬";
 }
 
-
-function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  if (mins > 0) {
-    return `${mins}m ${secs}s`;
-  }
-  return `${secs}s`;
-}
-
 function formatDateForDisplay(dateString: string): string {
   const date = new Date(dateString + "T00:00:00");
   return date.toLocaleDateString("en-US", { 
@@ -186,9 +175,7 @@ export function NumberPuzzle() {
   const [selectedNumberIndex, setSelectedNumberIndex] = useState<number | null>(null);
   const [selectedOperation, setSelectedOperation] = useState<string | null>(null);
   const [previousStates, setPreviousStates] = useState<GameState[]>([]);
-  const [elapsedTime, setElapsedTime] = useState(0);
   const [gameEnded, setGameEnded] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasCheckedDateRef = useRef(false);
   const previousTargetRef = useRef<number | null>(null);
 
@@ -235,7 +222,6 @@ export function NumberPuzzle() {
       setNumbers(generated.numbers.map((value) => ({ value, used: false })));
       setHistory([]);
       setDistanceEmojis([]);
-      setElapsedTime(0);
       setGameEnded(false);
       setPreviousStates([]);
     }
@@ -262,7 +248,6 @@ export function NumberPuzzle() {
         setNumbers(savedState.numbers);
         setHistory(savedState.history);
         setDistanceEmojis(savedState.distanceEmojis);
-        setElapsedTime(savedState.elapsedTime);
         setGameEnded(savedState.gameEnded);
         // Reset undo history on page reload - don't persist it
         setPreviousStates([]);
@@ -275,7 +260,6 @@ export function NumberPuzzle() {
         setNumbers(generated.numbers.map((value) => ({ value, used: false })));
         setHistory([]);
         setDistanceEmojis([]);
-        setElapsedTime(0);
         setGameEnded(false);
         // Clear undo history for new puzzle
         setPreviousStates([]);
@@ -291,7 +275,6 @@ export function NumberPuzzle() {
         numbers,
         history,
         distanceEmojis,
-        elapsedTime,
         gameEnded,
         target,
         puzzleDate: dateKey,
@@ -302,7 +285,7 @@ export function NumberPuzzle() {
       const storageKey = dailyMode ? `numberPuzzleState_${selectedDate}` : "numberPuzzleState_random";
       localStorage.setItem(storageKey, JSON.stringify(savedState));
     }
-  }, [numbers, history, distanceEmojis, elapsedTime, gameEnded, target, dailyMode, puzzleData, solution, selectedDate]);
+  }, [numbers, history, distanceEmojis, gameEnded, target, dailyMode, puzzleData, solution, selectedDate]);
 
   // Clear undo history when target number changes (but not on initial load)
   useEffect(() => {
@@ -312,26 +295,6 @@ export function NumberPuzzle() {
     }
     previousTargetRef.current = target;
   }, [target]);
-
-
-  // Timer effect
-  useEffect(() => {
-    if (!gameEnded) {
-      intervalRef.current = setInterval(() => {
-        setElapsedTime((prev) => prev + 1);
-      }, 1000);
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    }
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [gameEnded]);
 
   // Check for game end
   useEffect(() => {
@@ -473,7 +436,6 @@ export function NumberPuzzle() {
       localStorage.removeItem(`numberPuzzleState_${selectedDate}`);
     }
     
-    setElapsedTime(0);
     setGameEnded(false);
     // Regenerate puzzle with same seed if daily mode, or new timestamp seed for random mode
     const seed = dailyMode ? selectedDate : `random_${Date.now()}`;
@@ -540,7 +502,7 @@ export function NumberPuzzle() {
       : "❌";
     const todayDate = getDailyPuzzleDate();
     const dateText = formatDateForDisplay(todayDate);
-    return `Number golf: ${dateText}\nTime: ${formatTime(elapsedTime)}\n${emojiRow}${finalEmoji}`;
+    return `Number golf: ${dateText}\n${emojiRow}${finalEmoji}`;
   };
 
   const copyToClipboard = async () => {
@@ -641,9 +603,6 @@ export function NumberPuzzle() {
         "bg-blue-100"
       }`}>
         <div className="flex flex-col sm:flex-row justify-between items-center gap-2 mb-2">
-          <div className="text-base sm:text-lg font-semibold text-gray-600">
-            ⏱️ {formatTime(elapsedTime)}
-          </div>
           <h2 className="text-xl sm:text-2xl font-bold">Target: {target}</h2>
           {hasWon && distance !== null && (
             <div className="text-xl sm:text-2xl">{ratingEmoji}</div>
@@ -813,7 +772,6 @@ export function NumberPuzzle() {
             {hasWon && distanceEmojis.length === 0 && <span>{ratingEmoji}</span>}
             {hasLost && <span>❌</span>}
           </div>
-          <p className="text-base sm:text-lg text-purple-700 mb-4">Time: {formatTime(elapsedTime)}</p>
           {isTodayPuzzle && (
             <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
               <button
