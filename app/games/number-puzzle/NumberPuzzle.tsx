@@ -20,6 +20,7 @@ interface SavedGameState {
   history: string[];
   distanceEmojis: string[];
   gameEnded: boolean;
+  forfeited?: boolean;
   target: number;
   puzzleDate: string; // For daily mode - to check if it's a new day
   dailyMode: boolean;
@@ -240,6 +241,7 @@ export function NumberPuzzle() {
   const [selectedOperation, setSelectedOperation] = useState<string | null>(null);
   const [previousStates, setPreviousStates] = useState<GameState[]>([]);
   const [gameEnded, setGameEnded] = useState(false);
+  const [forfeited, setForfeited] = useState(false);
   const hasCheckedDateRef = useRef(false);
   const previousTargetRef = useRef<number | null>(null);
 
@@ -313,6 +315,7 @@ export function NumberPuzzle() {
         setHistory(savedState.history);
         setDistanceEmojis(savedState.distanceEmojis);
         setGameEnded(savedState.gameEnded);
+        setForfeited(savedState.forfeited ?? false);
         // Reset undo history on page reload - don't persist it
         setPreviousStates([]);
       } else {
@@ -325,6 +328,7 @@ export function NumberPuzzle() {
         setHistory([]);
         setDistanceEmojis([]);
         setGameEnded(false);
+        setForfeited(false);
         // Clear undo history for new puzzle
         setPreviousStates([]);
       }
@@ -340,6 +344,7 @@ export function NumberPuzzle() {
         history,
         distanceEmojis,
         gameEnded,
+        forfeited,
         target,
         puzzleDate: dateKey,
         dailyMode,
@@ -349,7 +354,7 @@ export function NumberPuzzle() {
       const storageKey = dailyMode ? `numberPuzzleState_${selectedDate}` : "numberPuzzleState_random";
       localStorage.setItem(storageKey, JSON.stringify(savedState));
     }
-  }, [numbers, history, distanceEmojis, gameEnded, target, dailyMode, puzzleData, solution, selectedDate]);
+  }, [numbers, history, distanceEmojis, gameEnded, forfeited, target, dailyMode, puzzleData, solution, selectedDate]);
 
   // Clear undo history when target number changes (but not on initial load)
   useEffect(() => {
@@ -540,7 +545,7 @@ export function NumberPuzzle() {
   const stepsToTarget = available.length > 0 ? getMinStepsToTarget(available, target) : Infinity;
   const remainingCount = available.length;
   const hasWon = closest !== null && distance === 0;
-  const hasLost = remainingCount === 1 && !hasWon;
+  const hasLost = (remainingCount === 1 && !hasWon) || forfeited;
   const ratingEmoji = getRatingEmoji(stepsToTarget);
   
   // Check if current puzzle is today's puzzle (for sharing)
@@ -564,7 +569,8 @@ export function NumberPuzzle() {
       : "❌";
     const todayDate = getDailyPuzzleDate();
     const dateText = formatDateForDisplay(todayDate);
-    return `Number golf: ${dateText}\n${emojiRow}${finalEmoji}`;
+    const distanceLine = hasLost && distance !== null ? `\nDistance from target: ${distance}` : "";
+    return `Number golf: ${dateText}\n${emojiRow}${finalEmoji}${distanceLine}\nPlay: https://games.jeeth.dev`;
   };
 
   const copyToClipboard = async () => {
@@ -673,20 +679,18 @@ export function NumberPuzzle() {
         {hasWon ? (
           <>
             <p className="text-xl sm:text-2xl font-bold text-green-700 mt-2">🎉 You Win! 🎉</p>
-            {stepsToTarget !== Infinity && (
-              <p className="text-base sm:text-lg text-green-600 mt-2">
-                Rating: {ratingEmoji} (Steps: {stepsToTarget})
-              </p>
-            )}
+            <p className="text-base sm:text-lg text-green-600 mt-2">
+              Rating: {ratingEmoji} ({stepsToTarget === Infinity ? "Unreachable" : `${stepsToTarget} steps`})
+            </p>
           </>
         ) : hasLost ? (
           <p className="text-xl sm:text-2xl font-bold text-red-700 mt-2">Game Over - You Lost!</p>
         ) : (
           <>
             <p className="text-sm sm:text-base text-gray-700">Use the numbers below to get as close as possible to the target</p>
-            {closest !== null && distance !== null && stepsToTarget !== Infinity && (
+            {closest !== null && distance !== null && (
               <p className="text-base sm:text-lg font-semibold mt-2">
-                Closest: {closest} (Steps: {stepsToTarget})
+                Closest: {closest} ({stepsToTarget === Infinity ? "Unreachable" : `${stepsToTarget} steps`})
               </p>
             )}
           </>
@@ -722,6 +726,17 @@ export function NumberPuzzle() {
             >
               Undo
             </button>
+            {!hasWon && !hasLost && (
+              <button
+                onClick={() => {
+                  setForfeited(true);
+                  setGameEnded(true);
+                }}
+                className="px-6 sm:px-6 py-4 sm:py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold text-base sm:text-base"
+              >
+                Forfeit
+              </button>
+            )}
             {(hasWon || hasLost) && (
               <button
                 onClick={() => setShowSolution(!showSolution)}
