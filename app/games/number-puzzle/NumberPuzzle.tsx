@@ -144,11 +144,75 @@ function generateSolvablePuzzle(seed: string): { numbers: number[]; target: numb
   };
 }
 
-function getRatingEmoji(distance: number): string {
-  if (distance === 0) return "💯";
-  if (distance >= 1 && distance < 10) return "👑";
-  if (distance >= 10 && distance < 50) return "🤩";
-  if (distance >= 50 && distance < 100) return "🧐";
+function getMinStepsToTarget(numbers: number[], target: number): number {
+  // If target is already in the numbers, return 0 steps
+  if (numbers.includes(target)) {
+    return 0;
+  }
+
+  // If only one number remains and it's not the target, return Infinity
+  if (numbers.length === 1) {
+    return Infinity;
+  }
+
+  // Memoization cache: key is sorted numbers array, value is minimum steps
+  const memo = new Map<string, number>();
+
+  function findMinStepsRecursive(nums: number[]): number {
+    // Base case: if we have the target, we're done (0 steps needed)
+    if (nums.includes(target)) {
+      return 0;
+    }
+
+    // Base case: if only one number remains and it's not the target, no solution
+    if (nums.length === 1) {
+      return Infinity;
+    }
+
+    // Create a key for memoization (sorted array)
+    const key = [...nums].sort((a, b) => a - b).join(",");
+    const cached = memo.get(key);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    let minSteps = Infinity;
+
+    // Try all pairs of numbers
+    for (let i = 0; i < nums.length; i++) {
+      for (let j = i + 1; j < nums.length; j++) {
+        const a = nums[i];
+        const b = nums[j];
+        const remaining = nums.filter((_, idx) => idx !== i && idx !== j);
+
+        // Try all operations
+        for (const op of ["+", "−", "×", "÷"]) {
+          const result = calculateResult(a, b, op);
+          if (result === null || result <= 0) continue; // Skip invalid operations
+
+          const newNums = [...remaining, result];
+          const steps = findMinStepsRecursive(newNums);
+          
+          if (steps !== Infinity) {
+            minSteps = Math.min(minSteps, 1 + steps);
+          }
+        }
+      }
+    }
+
+    memo.set(key, minSteps);
+    return minSteps;
+  }
+
+  return findMinStepsRecursive(numbers);
+}
+
+function getRatingEmoji(steps: number): string {
+  if (steps === Infinity) return "👻";
+  if (steps === 0) return "💯";
+  if (steps === 1) return "👑";
+  if (steps === 2) return "🤩";
+  if (steps === 3) return "🧐";
   return "😬";
 }
 
@@ -367,15 +431,12 @@ export function NumberPuzzle() {
     );
     newNumbers.push({ value: result, used: false });
     
-    // Calculate distance after this operation
+    // Calculate minimum steps to target after this operation
     const availableAfter = newNumbers.filter(n => !n.used).map(n => n.value);
-    const closestAfter = availableAfter.length > 0
-      ? availableAfter.reduce((prev: number, curr: number) => 
-          Math.abs(curr - target) < Math.abs(prev - target) ? curr : prev
-        )
-      : null;
-    const distanceAfter = closestAfter !== null ? Math.abs(closestAfter - target) : null;
-    const distanceEmoji = distanceAfter !== null ? getRatingEmoji(distanceAfter) : "😬";
+    const stepsAfter = availableAfter.length > 0
+      ? getMinStepsToTarget(availableAfter, target)
+      : Infinity;
+    const distanceEmoji = getRatingEmoji(stepsAfter);
 
     // Store previous state for undo (this will be saved to separate cache via useEffect)
     setPreviousStates([...previousStates, {
@@ -476,10 +537,11 @@ export function NumberPuzzle() {
   const available = getAvailableNumbers();
   const closest = getClosestNumber();
   const distance = getDistance();
+  const stepsToTarget = available.length > 0 ? getMinStepsToTarget(available, target) : Infinity;
   const remainingCount = available.length;
   const hasWon = closest !== null && distance === 0;
   const hasLost = remainingCount === 1 && !hasWon;
-  const ratingEmoji = distance !== null ? getRatingEmoji(distance) : "😬";
+  const ratingEmoji = getRatingEmoji(stepsToTarget);
   
   // Check if current puzzle is today's puzzle (for sharing)
   const today = getDailyPuzzleDate();
@@ -611,9 +673,9 @@ export function NumberPuzzle() {
         {hasWon ? (
           <>
             <p className="text-xl sm:text-2xl font-bold text-green-700 mt-2">🎉 You Win! 🎉</p>
-            {distance !== null && (
+            {stepsToTarget !== Infinity && (
               <p className="text-base sm:text-lg text-green-600 mt-2">
-                Rating: {ratingEmoji} (Distance: {distance})
+                Rating: {ratingEmoji} (Steps: {stepsToTarget})
               </p>
             )}
           </>
@@ -622,9 +684,9 @@ export function NumberPuzzle() {
         ) : (
           <>
             <p className="text-sm sm:text-base text-gray-700">Use the numbers below to get as close as possible to the target</p>
-            {closest !== null && distance !== null && (
+            {closest !== null && distance !== null && stepsToTarget !== Infinity && (
               <p className="text-base sm:text-lg font-semibold mt-2">
-                Closest: {closest} (Distance: {distance})
+                Closest: {closest} (Steps: {stepsToTarget})
               </p>
             )}
           </>
@@ -855,28 +917,32 @@ export function NumberPuzzle() {
               <div>
                 <h3 className="text-lg sm:text-xl font-bold mb-2 sm:mb-3">Rating System</h3>
                 <p className="text-sm sm:text-base text-gray-700 mb-2 sm:mb-3">
-                  After each operation, you'll see an emoji showing how close you are to the target:
+                  After each operation, you'll see an emoji showing how many steps a perfect player would need to reach the target:
                 </p>
                 <div className="bg-gray-50 p-3 sm:p-4 rounded-lg space-y-1 sm:space-y-2">
                   <div className="flex items-center gap-2 sm:gap-3">
                     <span className="text-xl sm:text-2xl">💯</span>
-                    <span className="text-xs sm:text-sm text-gray-700">Exact match (distance = 0)</span>
+                    <span className="text-xs sm:text-sm text-gray-700">Exact match (0 steps needed)</span>
                   </div>
                   <div className="flex items-center gap-2 sm:gap-3">
                     <span className="text-xl sm:text-2xl">👑</span>
-                    <span className="text-xs sm:text-sm text-gray-700">Very close (distance 1-9)</span>
+                    <span className="text-xs sm:text-sm text-gray-700">1 step away</span>
                   </div>
                   <div className="flex items-center gap-2 sm:gap-3">
                     <span className="text-xl sm:text-2xl">🤩</span>
-                    <span className="text-xs sm:text-sm text-gray-700">Close (distance 10-49)</span>
+                    <span className="text-xs sm:text-sm text-gray-700">2 steps away</span>
                   </div>
                   <div className="flex items-center gap-2 sm:gap-3">
                     <span className="text-xl sm:text-2xl">🧐</span>
-                    <span className="text-xs sm:text-sm text-gray-700">Getting there (distance 50-99)</span>
+                    <span className="text-xs sm:text-sm text-gray-700">3 steps away</span>
                   </div>
                   <div className="flex items-center gap-2 sm:gap-3">
                     <span className="text-xl sm:text-2xl">😬</span>
-                    <span className="text-xs sm:text-sm text-gray-700">Far away (distance 100+)</span>
+                    <span className="text-xs sm:text-sm text-gray-700">4+ steps away</span>
+                  </div>
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <span className="text-xl sm:text-2xl">👻</span>
+                    <span className="text-xs sm:text-sm text-gray-700">Unreachable</span>
                   </div>
                 </div>
               </div>
